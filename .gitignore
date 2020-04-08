@@ -1,0 +1,10 @@
+*~
+*.pyc
+*.o
+*.so
+build
+dist
+supreme.egg-info
+.DS_Store
+*.fits
+.ipynb_checkpoints
