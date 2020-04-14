@@ -29,7 +29,7 @@ class TractMapper(object):
         num_patches = tract_info.getNumPatches()
 
         patch_area = approx_patch_polygon_area(tract_info.getPatchInfo((0, 0)),
-                                               tract_info.getWcs()))
+                                               tract_info.getWcs())
         tract_area = patch_area * num_patches[0] * num_patches[1]
         nside_coverage_tract = 32
         while hp.nside2pixarea(nside_coverage_tract, degrees=True) > tract_area:
