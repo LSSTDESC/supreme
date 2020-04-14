@@ -37,10 +37,10 @@ def get_approx_psf_size_and_shape(bbox, psf, wcs, ra, dec, nx=20, ny=20, orderx=
     pixel_y = np.array([pix.getY() for pix in pixels])
 
     cheb_size = ChebyshevBoundedField.fit(lsst.geom.Box2I(bbox), x, y, psf_size, ctrl)
-    psf_size_pts = chebSize.evaluate(pixel_x, pixel_y)
+    psf_size_pts = cheb_size.evaluate(pixel_x, pixel_y)
     cheb_e1 = ChebyshevBoundedField.fit(lsst.geom.Box2I(bbox), x, y, psf_e1, ctrl)
     psf_e1_pts = cheb_e1.evaluate(pixel_x, pixel_y)
     cheb_e2 = ChebyshevBoundedField.fit(lsst.geom.Box2I(bbox), x, y, psf_e2, ctrl)
-    psf_e2_pts = chebE2.evaluate(pixel_x, pixel_y)
+    psf_e2_pts = cheb_e2.evaluate(pixel_x, pixel_y)
 
     return psf_size_pts, psf_e1_pts, psf_e2_pts

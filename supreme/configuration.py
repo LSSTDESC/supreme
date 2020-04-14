@@ -1,7 +1,7 @@
 import yaml
 
-from .utils import OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX
 from .utils import op_code_to_str
+
 
 class Configuration(object):
     """
@@ -38,7 +38,7 @@ class Configuration(object):
     def __getattr__(self, attr):
         try:
             return self._config[attr]
-        except:
+        except KeyError:
             return object.__getattribute__(self, attr)
 
     def __setitem__(self, key, item):
@@ -55,9 +55,6 @@ class Configuration(object):
 
     def __delitem__(self, key):
         self._config.__delitem__(key)
-
-    def has_key(self, key):
-        return self._config.has_key(key)
 
     def update(self, *args, **kwargs):
         return self._config.update(*args, **kwargs)

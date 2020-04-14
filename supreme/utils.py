@@ -41,10 +41,11 @@ def op_str_to_code(op_str):
 
     return op_code
 
+
 def vertices_to_radec(vertices):
     lonlats = [lsst.sphgeom.LonLat(x) for x in vertices]
     radec = np.array([(x.getLon().asDegrees(), x.getLat().asDegrees()) for
-                      x in polyLonLats])
+                      x in lonlats])
 
     return radec
 
@@ -61,6 +62,7 @@ def approx_patch_polygon_area(patch_info, wcs):
     area = delta_ra * delta_dec * np.cos(np.deg2rad(np.mean(radec[:, 1])))
 
     return area
+
 
 def radec_to_pixels(wcs, ra, dec):
     pts = [lsst.geom.SpherePoint(r*lsst.geom.degrees, d*lsst.geom.degrees) for
@@ -93,5 +95,3 @@ def convert_mask_to_bbox_list(mask, plane_name):
     defects = measAlg.Defects.fromFootprintList(fp_list)
 
     return [d.getBBox() for d in defects]
-
-

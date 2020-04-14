@@ -1,12 +1,16 @@
 import os
 import numpy as np
+import healpy as hp
 import healsparse
 
-import lsst.daf.persistence as dafPersist
+import lsst.geom
 
-from .configuration import Configuration
-from .utils import vertices_to_radec, radec_to_pixels, pixels_to_radec, xy_to_radec
+from .utils import vertices_to_radec, pixels_to_radec
 from .utils import OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX
+from .utils import approx_patch_polygon_area, op_str_to_code
+from .utils import convert_mask_to_bbox_list
+from .psf import get_approx_psf_size_and_shape
+
 
 class PatchMapper(object):
     """
@@ -40,7 +44,7 @@ class PatchMapper(object):
 
         # Compute the optimal coverage nside for the size of the patch
         # This does not need to match the tract coverage map!
-        patch_area = get_sky_polygon_area(patch_info, tract_info.getWcs())
+        patch_area = approx_patch_polygon_area(patch_info, tract_info.getWcs())
         nside_coverage_patch = 32
         while hp.nside2pixarea(nside_coverage_patch, degrees=True) > patch_area:
             nside_coverage_patch = int(2*nside_coverage_patch)
@@ -56,21 +60,21 @@ class PatchMapper(object):
         if os.path.isfile(patch_input_filename):
             patch_input_map = healsparse.HealSparseMap.read(patch_input_filename)
         else:
-            patch_input_map = self.build_patch_input_map(tract_info.getWcs(), patch_info, ccds, nside_coverage_patch)
+            patch_input_map = self.build_patch_input_map(tract_info.getWcs(),
+                                                         patch_info,
+                                                         inputs.ccds,
+                                                         nside_coverage_patch)
             patch_input_map.write(patch_input_filename)
 
         # Now we build maps
         valid_pixels, ra, dec = patch_input_map.valid_pixels_pos(lonlat=True, return_pixels=True)
 
         has_psf_quantity = False
-        save_nexp = False
-        map_value_list = []
+        map_values_list = []
         map_operation_list = []
         for map_type in self.config.map_types.keys():
             if map_type == 'psf_size' or map_type == 'psf_e1' or map_type == 'psf_e2':
                 has_psf_quantity = True
-            elif map_type == 'nexp':
-                save_nexp = True
 
             n_operations = len(self.config.map_types[map_type])
             map_values = np.zeros((valid_pixels.size, n_operations))
@@ -79,7 +83,7 @@ class PatchMapper(object):
                 op_code = op_str_to_code(operation)
                 op_list.append(op_code)
 
-            map_value_list.append(map_values)
+            map_values_list.append(map_values)
             map_operation_list.append(op_list)
 
         weights = np.zeros(valid_pixels.size)
@@ -93,7 +97,7 @@ class PatchMapper(object):
             weights[u] += ccd['weight']
             nexp[u] += 1
 
-            if has_psf_quantities:
+            if has_psf_quantity:
                 ccd_box = lsst.geom.Box2D(ccd.getBBox())
                 psf_size, psf_e1, psf_e2 = get_approx_psf_size_and_shape(ccd_box,
                                                                          ccd.getPsf(),
@@ -130,7 +134,6 @@ class PatchMapper(object):
 
         # And we've done all the accumulations, finish the mean/wmean
         # And turn these into maps
-        returned_maps = []
         for i, map_type in enumerate(self.config.map_types.keys()):
             for j, op in enumerate(map_operation_list[i]):
                 if op == OP_MEAN:
@@ -194,7 +197,7 @@ class PatchMapper(object):
                         mask_poly_list.append(mask_poly)
                     mask_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_patch,
                                                                    nside_sparse=self.config.nside,
-                                                                   dtype=uint8)
+                                                                   dtype=np.uint8)
                     healsparse.realize_geom(mask_poly_list, mask_map)
 
                     # valid_pixels = poly_map.valid_pixels

@@ -1,10 +1,11 @@
+import os
 import numpy as np
+import healpy as hp
 import healsparse
 
-import lsst.daf.persistence as dafPersist
-
-from .configuration import Configuration
 from .patch_mapper import PatchMapper
+from .utils import approx_patch_polygon_area, op_str_to_code
+
 
 class TractMapper(object):
     """
@@ -27,7 +28,7 @@ class TractMapper(object):
         tract_info = skymap[tract]
         num_patches = tract_info.getNumPatches()
 
-        patch_area = get_sky_polygon_area(tract_info.getPatch_info((0, 0)))
+        patch_area = approx_patch_polygon_area(tract_info.getPatch_info((0, 0)))
         tract_area = patch_area * num_patches[0] * num_patches[1]
         nside_coverage_tract = 32
         while hp.nside2pixarea(nside_coverage_tract, degrees=True) > tract_area:
@@ -74,8 +75,3 @@ class TractMapper(object):
                                                                     map_type,
                                                                     op))
                 tract_map_list[i][j].write(fname)
-
-
-
-
-
