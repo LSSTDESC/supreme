@@ -83,6 +83,10 @@ class PatchMapper(object):
                 op_code = op_str_to_code(operation)
                 op_list.append(op_code)
 
+                if op_code == OP_MIN or np_code == OP_MAX:
+                    # We use fmin and fmax, so nans get overwritten
+                    map_values[:, j] = np.nan
+
             map_values_list.append(map_values)
             map_operation_list.append(op_list)
 
@@ -126,7 +130,7 @@ class PatchMapper(object):
                     elif op == OP_MEAN:
                         map_values_list[i][u, j] += values
                     elif op == OP_WMEAN:
-                        map_values_list[i][u, j] += weights[u]*values
+                        map_values_list[i][u, j] += ccd['weight']*values
                     elif op == OP_MIN:
                         map_values_list[i][u, j] = np.fmin(map_values_list[i][u, j], values)
                     elif op == OP_MAX:
