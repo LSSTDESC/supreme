@@ -16,8 +16,6 @@ if __name__ == '__main__':
                         default='./', help='Name of output path.')
     parser.add_argument('-t', '--tract', action='store', type=int, required=True,
                         help='Name of tract')
-    parser.add_argument('-p', '--patch', action='store', type=str, required=True,
-                        help='Name of patch')
     parser.add_argument('-f', '--filter_name', action='store', type=str, required=True,
                         help='Name of filter')
 
