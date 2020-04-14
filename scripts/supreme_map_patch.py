@@ -29,4 +29,4 @@ if __name__ == '__main__':
     config = supreme.Configuration(args.configfile)
 
     mapper = supreme.PatchMapper(butler, config, args.outputpath)
-    mapper.run(args.filter, args.tract, args.patch)
+    mapper.run(args.filter_name, args.tract, args.patch)

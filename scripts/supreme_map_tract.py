@@ -29,4 +29,4 @@ if __name__ == '__main__':
     config = supreme.Configuration(args.configfile)
 
     mapper = supreme.TractMapper(butler, config, args.outputpath)
-    mapper.run(args.filter, args.tract)
+    mapper.run(args.filter_name, args.tract)
