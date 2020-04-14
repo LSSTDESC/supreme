@@ -30,7 +30,7 @@ class PatchMapper(object):
                                          tract=tract,
                                          patch=patch_name,
                                          filter=filter_name):
-            continue
+            return
 
         skymap = butler.get('deepCoadd_skyMap')
         tract_info = skymap[tract]
