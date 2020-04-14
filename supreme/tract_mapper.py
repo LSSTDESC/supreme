@@ -34,7 +34,7 @@ class TractMapper(object):
         nside_coverage_tract = 32
         while hp.nside2pixarea(nside_coverage_tract, degrees=True) > tract_area:
             nside_coverage_tract = int(2*nside_coverage_tract)
-        nside_coverage_tract = np.clip(nside_coverage_tract / 2, 32, None)
+        nside_coverage_tract = int(np.clip(nside_coverage_tract / 2, 32, None))
 
         patch_mapper = PatchMapper(self.butler, self.config, self.outputpath)
 
@@ -42,8 +42,8 @@ class TractMapper(object):
         map_operation_list = []
         for map_type in self.config.map_types.keys():
             op_list = []
+            op_map_list = []
             for j, operation in enumerate(self.config.map_types[map_type]):
-                op_map_list = []
                 tract_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_tract,
                                                                 nside_sparse=self.config.nside,
                                                                 dtype=np.float64)
@@ -59,13 +59,13 @@ class TractMapper(object):
                 patch_input_map, map_values_list = patch_mapper.run(filter_name,
                                                                     tract,
                                                                     patch_name,
-                                                                    return_values=True)
+                                                                    return_values_list=True)
                 valid_pixels = patch_input_map.valid_pixels
 
                 for i, map_type in enumerate(self.config.map_types.keys()):
                     for j, op in enumerate(map_operation_list[i]):
                         tract_map_list[i][j].update_values_pix(valid_pixels,
-                                                               map_values_list[i][j])
+                                                               map_values_list[i][:, j])
 
         # We are done assembling
         for i, map_type in enumerate(self.config.map_types.keys()):
