@@ -22,7 +22,7 @@ class TractMapper(object):
     def run(self, filter_name, tract):
         """
         """
-        skymap = butler.get('deepCoadd_skyMap')
+        skymap = self.butler.get('deepCoadd_skyMap')
 
         tract_info = skymap[tract]
         num_patches = tract_info.getNumPatches()

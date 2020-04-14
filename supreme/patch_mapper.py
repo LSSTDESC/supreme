@@ -32,7 +32,7 @@ class PatchMapper(object):
                                          filter=filter_name):
             return
 
-        skymap = butler.get('deepCoadd_skyMap')
+        skymap = self.butler.get('deepCoadd_skyMap')
         tract_info = skymap[tract]
 
         patch_indices = [int(x) for x in patch_name.split(',')]
@@ -46,7 +46,7 @@ class PatchMapper(object):
             nside_coverage_patch = int(2*nside_coverage_patch)
         nside_coverage_patch = int(nside_coverage_patch / 2)
 
-        exposure = butler.get('deepCoadd', tract=tract, patch=patch_name, filter=filter_name)
+        exposure = self.butler.get('deepCoadd', tract=tract, patch=patch_name, filter=filter_name)
         info = exposure.getInfo()
         inputs = info.getCoaddInputs()
 
