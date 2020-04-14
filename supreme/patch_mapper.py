@@ -36,7 +36,7 @@ class PatchMapper(object):
         tract_info = skymap[tract]
 
         patch_indices = [int(x) for x in patch_name.split(',')]
-        patch_info = tractInfo.getPatchInfo(patch_indices)
+        patch_info = tract_info.getPatchInfo(patch_indices)
 
         # Compute the optimal coverage nside for the size of the patch
         # This does not need to match the tract coverage map!
