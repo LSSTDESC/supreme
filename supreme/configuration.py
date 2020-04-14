@@ -17,11 +17,11 @@ class Configuration(object):
             self._config = yaml.load(f, Loader=yaml.SafeLoader)
 
     def patch_input_filename(self, filter_name, tract, patch_name):
-        return '%s_%05d_%s_%s_patch_inputs.hs' % (self['outbase'],
+        return '%s_%05d_%s_%s_patch_inputs.hs' % (self.outbase,
                                                   tract, patch_name, filter_name)
 
     def patch_map_filename(self, filter_name, tract, patch_name, map_type, operation):
-        return "%s_%05d_%s_%s_%s_%s.hs" % (self['outbase'],
+        return "%s_%05d_%s_%s_%s_%s.hs" % (self.outbase,
                                            tract,
                                            patch_name,
                                            filter_name,
@@ -29,7 +29,7 @@ class Configuration(object):
                                            op_code_to_str(operation))
 
     def tract_map_filename(self, filter_name, tract, map_type, operation):
-        return "%s_%05d_%s_%s_%s.hs" % (self['outbase'],
+        return "%s_%05d_%s_%s_%s.hs" % (self.outbase,
                                         tract,
                                         filter_name,
                                         map_type,
@@ -45,7 +45,7 @@ class Configuration(object):
         self._config.__setitem__(key, item)
 
     def __getitem__(self, key, item):
-        return self._config.__getitem__(key)
+        return self._config.__getitem__(key, item)
 
     def __repr__(self):
         return self._config.__repr__()
