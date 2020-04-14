@@ -83,7 +83,7 @@ class PatchMapper(object):
                 op_code = op_str_to_code(operation)
                 op_list.append(op_code)
 
-                if op_code == OP_MIN or np_code == OP_MAX:
+                if op_code == OP_MIN or op_code == OP_MAX:
                     # We use fmin and fmax, so nans get overwritten
                     map_values[:, j] = np.nan
 
