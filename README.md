@@ -1,5 +1,5 @@
 # suprême
-*Su*rvey *Pr*op*ê*rty *M*aps with healspars*e* for the LSST survey
+**Su**rvey **Pr**op**ê**rty **M**aps with healspars**e** for the LSST survey
 
 This code uses [healsparse](https://github.com/lsstdesc/healsparse) to make
 survey property maps for the Vera C. Rubin Observatory Legacy Survey of Space
