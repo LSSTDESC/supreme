@@ -187,7 +187,10 @@ class PatchMapper(object):
             poly_map = poly.get_map_like(patch_input_map)
 
             if self.config.use_calexp_mask:
-                calexp = self.butler.get('calexp', ccd=ccd['ccd'], visit=ccd['visit'])
+                dataId = {self.config.detector_id_name: int(ccd['ccd']),
+                          self.config.visit_id_name: int(ccd['visit'])}
+                calexp = self.butler.get('calexp', dataId=dataId)
+
                 mask = calexp.getMask()
 
                 mask_poly_list = []
