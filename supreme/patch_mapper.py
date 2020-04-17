@@ -5,7 +5,7 @@ import healsparse
 
 import lsst.geom
 
-from .utils import vertices_to_radec, pixels_to_radec
+from .utils import vertices_to_radec, pixels_to_radec, radec_to_pixels
 from .utils import OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX
 from .utils import approx_patch_polygon_area, op_str_to_code
 from .utils import convert_mask_to_bbox_list
@@ -28,7 +28,6 @@ class PatchMapper(object):
     def run(self, filter_name, tract, patch_name, return_values_list=True):
         """
         """
-        print('Working on patch %s' % (patch_name))
 
         if not self.butler.datasetExists('deepCoadd',
                                          tract=tract,
@@ -54,6 +53,8 @@ class PatchMapper(object):
         info = exposure.getInfo()
         inputs = info.getCoaddInputs()
 
+        print('Working on patch %s with %d input ccds' % (patch_name, len(inputs.ccds)))
+
         # Check if we already have the persisted patch input map
         patch_input_filename = os.path.join(self.outputpath,
                                             self.config.patch_input_filename(filter_name, tract, patch_name))
@@ -70,11 +71,18 @@ class PatchMapper(object):
         valid_pixels, ra, dec = patch_input_map.valid_pixels_pos(lonlat=True, return_pixels=True)
 
         has_psf_quantity = False
+        has_metadata_quantity = False
+        has_calibrated_quantity = False
         map_values_list = []
         map_operation_list = []
         for map_type in self.config.map_types.keys():
             if map_type == 'psf_size' or map_type == 'psf_e1' or map_type == 'psf_e2':
                 has_psf_quantity = True
+            if map_type == 'skylevel' or map_type == 'skysigma' or map_type == 'bgmean':
+                has_metadata_quantity = True
+            if map_type == 'skylevel' or map_type == 'skysigma' or \
+                    map_type == 'bgmean' or map_type == 'background':
+                has_calibrated_quantity = True
 
             n_operations = len(self.config.map_types[map_type])
             map_values = np.zeros((valid_pixels.size, n_operations))
@@ -90,12 +98,17 @@ class PatchMapper(object):
             map_values_list.append(map_values)
             map_operation_list.append(op_list)
 
+        metadata = patch_input_map.metadata
         weights = np.zeros(valid_pixels.size)
         nexp = np.zeros(valid_pixels.size, dtype=np.int32)
         for bit, ccd in enumerate(inputs.ccds):
             u, = np.where(patch_input_map.check_bits_pix(valid_pixels, [bit]))
             if u.size == 0:
                 continue
+
+            # Compute the dataId if we need it (for background)
+            dataId = {self.config.detector_id_name: int(ccd['ccd']),
+                      self.config.visit_id_name: int(ccd['visit'])}
 
             # First, the weights and counting, we always need these
             weights[u] += ccd['weight']
@@ -107,6 +120,25 @@ class PatchMapper(object):
                                                                          ccd.getPsf(),
                                                                          ccd.getWcs(),
                                                                          ra[u], dec[u])
+
+            if has_metadata_quantity:
+                if ('B%04dSLV' % (bit)) in metadata:
+                    skylevel = metadata['B%04dSLV' % (bit)]
+                    skysigma = metadata['B%04dSSG' % (bit)]
+                    bgmean = metadata['B%04dBGM' % (bit)]
+                else:
+                    # We must load the metadata
+                    # This might be redundant, but useful during testing/development
+                    calexp_metadata = self.butler.get('calexp_md', dataId=dataId)
+                    skylevel = calexp_metadata['SKYLEVEL']
+                    skysigma = calexp_metadata['SKYSIGMA']
+                    bgmean = calexp_metadata['BGMEAN']
+
+            if has_calibrated_quantity:
+                photoCalib = ccd.getPhotoCalib()
+                bf = photoCalib.computeScaledCalibration()
+                pixels, xy = radec_to_pixels(ccd.getWcs(), ra[u], dec[u])
+                calib_scale = photoCalib.getCalibrationMean() * bf.evaluate(xy[:, 0], xy[:, 1])
 
             for i, map_type in enumerate(self.config.map_types.keys()):
                 if map_type == 'psf_size':
@@ -121,6 +153,25 @@ class PatchMapper(object):
                     values = np.zeros(u.size) + ccd.getVisitInfo().getBoresightAirmass()
                 elif map_type == 'nexp':
                     values = np.ones(u.size, dtype=np.int32)
+                elif map_type == 'skylevel':
+                    values = skylevel*calib_scale
+                elif map_type == 'skysigma':
+                    values = skysigma*calib_scale
+                elif map_type == 'bgmean':
+                    values = bgmean*calib_scale
+                elif map_type == 'background':
+                    bkg = self.butler.get('calexpBackground', dataId=dataId)
+                    bkgImage = bkg.getImage()
+                    if self.butler.datasetExists('skyCorr', dataId=dataId):
+                        skyCorr = self.butler.get('skyCorr', dataId=dataId)
+                        bkgImage += skyCorr.getImage()
+
+                    # Take the background at the given pixel.  Since this
+                    # is a smooth map anyway, this should be fine and we
+                    # don't need to average over the full coverage
+                    values = bkgImage.getArray()[xy[:, 1].astype(np.int32),
+                                                 xy[:, 0].astype(np.int32)]
+                    values *= calib_scale
                 else:
                     raise ValueError("Illegal map type %s" % (map_type))
 
@@ -186,10 +237,12 @@ class PatchMapper(object):
                                       value=[bit])
             poly_map = poly.get_map_like(patch_input_map)
 
+            dataId = {self.config.detector_id_name: int(ccd['ccd']),
+                      self.config.visit_id_name: int(ccd['visit'])}
+
             if self.config.use_calexp_mask:
-                dataId = {self.config.detector_id_name: int(ccd['ccd']),
-                          self.config.visit_id_name: int(ccd['visit'])}
                 calexp = self.butler.get('calexp', dataId=dataId)
+                calexp_metadata = calexp.getMetadata()
 
                 mask = calexp.getMask()
 
@@ -211,6 +264,13 @@ class PatchMapper(object):
                     # bad, = np.where(mask_map.get_values_pix(valid_pixels) == 1)
                     # poly_map.clear_bits_pix(valid_pixels[bad], [bit])
                     poly_map.apply_mask(mask_map)
+            else:
+                calexp_metadata = self.butler.get('calexp_md', dataId=dataId)
+
+            metadata['B%04dSLV' % (bit)] = calexp_metadata['SKYLEVEL']
+            metadata['B%04dSSG' % (bit)] = calexp_metadata['SKYSIGMA']
+            metadata['B%04dBGM' % (bit)] = calexp_metadata['BGMEAN']
+            metadata['B%04dBGV' % (bit)] = calexp_metadata['BGVAR']
 
             # Now we have the full masked ccd map, append to list
             poly_map_list.append(poly_map)
