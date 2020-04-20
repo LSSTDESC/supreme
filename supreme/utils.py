@@ -83,9 +83,46 @@ def pixels_to_radec(wcs, pixels):
 
 
 def xy_to_radec(wcs, x, y):
-    pixels = [lsst.geom.Point2D(xx, yy) for xx, yy in zip(x, y)]
+    """
+    """
+    trans = wcs.getTransform()
+    mapping = trans.getMapping()
+    xy = np.vstack((x, y))
+    rd = mapping.applyForward(xy)
+    rd[0, :] = rd[0, :] % (2*np.pi)
+    return np.rad2deg(rd.T)
 
-    return pixels_to_radec(pixels)
+
+def radec_to_xy(wcs, ra, dec):
+    """
+    """
+    trans = wcs.getTransform()
+    mapping = trans.getMapping()
+    rd = np.vstack((np.deg2rad(ra), np.deg2rad(dec)))
+    xy = mapping.applyInverse(rd)
+    return xy.T
+
+
+def bbox_to_radec_grid(wcs, bbox):
+    """
+    """
+    # THIS DOES NOT WORK WITH NON-ZERO ORIGIN BOXES ... TBD...
+    trans = wcs.getTransform()
+    mapping = trans.getMapping()
+
+    temp = mapping.tranGridForward([bbox.getBeginX(), bbox.getBeginY()],
+                                   [bbox.getEndX() - 1, bbox.getEndY() - 1],
+                                   1e-7,
+                                   max([bbox.getEndX(), bbox.getEndY()]),
+                                   bbox.getEndX()*bbox.getEndY()).flatten()
+    radec = np.zeros((temp.size // 2, 2))
+    radec[:, 0] = np.rad2deg(temp[0: temp.size // 2] % (2*np.pi))
+    radec[:, 1] = np.rad2deg(temp[temp.size // 2: ])
+    xy = np.zeros_like(radec, dtype=np.int32)
+    xy[:, 0] = np.tile(np.arange(bbox.getEndX()), bbox.getEndY())
+    xy[:, 1] = np.repeat(np.arange(bbox.getEndY()), bbox.getEndX())
+
+    return xy, radec
 
 
 def convert_mask_to_bbox_list(mask, plane_name):

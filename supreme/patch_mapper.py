@@ -1,9 +1,12 @@
 import os
 import numpy as np
 import healpy as hp
+import esutil
 import healsparse
 
 import lsst.geom
+import lsst.afw.math as afwMath
+import lsst.afw.image as afwImage
 
 from .utils import vertices_to_radec, pixels_to_radec, radec_to_pixels
 from .utils import OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX
@@ -73,6 +76,7 @@ class PatchMapper(object):
         has_psf_quantity = False
         has_metadata_quantity = False
         has_calibrated_quantity = False
+        has_coadd_quantity = False
         map_values_list = []
         map_operation_list = []
         for map_type in self.config.map_types.keys():
@@ -83,6 +87,9 @@ class PatchMapper(object):
             if map_type == 'skylevel' or map_type == 'skysigma' or \
                     map_type == 'bgmean' or map_type == 'background':
                 has_calibrated_quantity = True
+            if map_type == 'coadd_image' or map_type == 'coadd_variance' or \
+                    map_type == 'coadd_mask':
+                has_coadd_quantity = True
 
             n_operations = len(self.config.map_types[map_type])
             map_values = np.zeros((valid_pixels.size, n_operations))
@@ -172,6 +179,8 @@ class PatchMapper(object):
                     values = bkgImage.getArray()[xy[:, 1].astype(np.int32),
                                                  xy[:, 0].astype(np.int32)]
                     values *= calib_scale
+                elif map_type.startswith('coadd'):
+                    continue
                 else:
                     raise ValueError("Illegal map type %s" % (map_type))
 
@@ -186,6 +195,17 @@ class PatchMapper(object):
                         map_values_list[i][u, j] = np.fmin(map_values_list[i][u, j], values)
                     elif op == OP_MAX:
                         map_values_list[i][u, j] = np.fmax(map_values_list[i][u, j], values)
+
+        if has_coadd_quantity:
+            # THIS DOES NOT WORK YET
+            # Get grid of coadd positions xy and radec
+            coadd_xy, coadd_radec = bbox_to_radec_grid(exposure.getWcs(),
+                                                       patch_info.getInnerBBox())
+            coadd_origin = exposure.getBBox().getBegin()
+
+            # Convert radec to healpix pixels
+            hpix = hp.ang2pix(self.config.nside, coadd_radec[:, 0], coadd_radec[:, 1],
+                              lonlat=True, nest=True)
 
         # And we've done all the accumulations, finish the mean/wmean
         # And turn these into maps
@@ -259,16 +279,35 @@ class PatchMapper(object):
                                                                    nside_sparse=self.config.nside,
                                                                    dtype=np.uint8)
                     healsparse.realize_geom(mask_poly_list, mask_map)
-
-                    # valid_pixels = poly_map.valid_pixels
-                    # bad, = np.where(mask_map.get_values_pix(valid_pixels) == 1)
-                    # poly_map.clear_bits_pix(valid_pixels[bad], [bit])
                     poly_map.apply_mask(mask_map)
+
+                if 'SKYLEVEL' not in calexp_metadata:
+                    # We must recompute skylevel, skysigma
+
+                    # We need to re-add in the background
+                    bkg = self.butler.get('calexpBackground', dataId=dataId)
+
+                    statsControl = afwMath.StatisticsControl(3.0, 3)
+                    maskVal = calexp.getMaskedImage().getMask().getPlaneBitMask(["BAD",
+                                                                                 "SAT",
+                                                                                 "DETECTED"])
+                    statsControl.setAndMask(maskVal)
+                    maskedImage = calexp.getMaskedImage()
+                    maskedImage += bkg.getImage()
+                    stats = afwMath.makeStatistics(maskedImage, afwMath.MEDIAN | afwMath.STDEVCLIP,
+                                                   statsControl)
+                    skylevel = stats.getValue(afwMath.MEDIAN)
+                    skysigma = stats.getValue(afwMath.STDEVCLIP)
+                    del maskedImage
             else:
                 calexp_metadata = self.butler.get('calexp_md', dataId=dataId)
+                if 'SKYLEVEL' not in calexp_metadata:
+                    # We want to log this
+                    skylevel = 0.0
+                    skysigma = 0.0
 
-            metadata['B%04dSLV' % (bit)] = calexp_metadata['SKYLEVEL']
-            metadata['B%04dSSG' % (bit)] = calexp_metadata['SKYSIGMA']
+            metadata['B%04dSLV' % (bit)] = skylevel
+            metadata['B%04dSSG' % (bit)] = skysigma
             metadata['B%04dBGM' % (bit)] = calexp_metadata['BGMEAN']
             metadata['B%04dBGV' % (bit)] = calexp_metadata['BGVAR']
 
