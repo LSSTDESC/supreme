@@ -1,12 +1,10 @@
 import os
 import numpy as np
 import healpy as hp
-import esutil
 import healsparse
 
 import lsst.geom
 import lsst.afw.math as afwMath
-import lsst.afw.image as afwImage
 
 from .utils import vertices_to_radec, pixels_to_radec, radec_to_pixels
 from .utils import OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX
@@ -197,6 +195,7 @@ class PatchMapper(object):
                         map_values_list[i][u, j] = np.fmax(map_values_list[i][u, j], values)
 
         if has_coadd_quantity:
+            """
             # THIS DOES NOT WORK YET
             # Get grid of coadd positions xy and radec
             coadd_xy, coadd_radec = bbox_to_radec_grid(exposure.getWcs(),
@@ -206,6 +205,8 @@ class PatchMapper(object):
             # Convert radec to healpix pixels
             hpix = hp.ang2pix(self.config.nside, coadd_radec[:, 0], coadd_radec[:, 1],
                               lonlat=True, nest=True)
+                              """
+            pass
 
         # And we've done all the accumulations, finish the mean/wmean
         # And turn these into maps

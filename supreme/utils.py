@@ -117,7 +117,7 @@ def bbox_to_radec_grid(wcs, bbox):
                                    bbox.getEndX()*bbox.getEndY()).flatten()
     radec = np.zeros((temp.size // 2, 2))
     radec[:, 0] = np.rad2deg(temp[0: temp.size // 2] % (2*np.pi))
-    radec[:, 1] = np.rad2deg(temp[temp.size // 2: ])
+    radec[:, 1] = np.rad2deg(temp[temp.size // 2:])
     xy = np.zeros_like(radec, dtype=np.int32)
     xy[:, 0] = np.tile(np.arange(bbox.getEndX()), bbox.getEndY())
     xy[:, 1] = np.repeat(np.arange(bbox.getEndY()), bbox.getEndX())
