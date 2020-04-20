@@ -300,12 +300,18 @@ class PatchMapper(object):
                     skylevel = stats.getValue(afwMath.MEDIAN)
                     skysigma = stats.getValue(afwMath.STDEVCLIP)
                     del maskedImage
+                else:
+                    skylevel = calexp_metadata['SKYLEVEL']
+                    skysigma = calexp_metadata['SKYSIGMA']
             else:
                 calexp_metadata = self.butler.get('calexp_md', dataId=dataId)
                 if 'SKYLEVEL' not in calexp_metadata:
                     # We want to log this
                     skylevel = 0.0
                     skysigma = 0.0
+                else:
+                    skylevel = calexp_metadata['SKYLEVEL']
+                    skysigma = calexp_metadata['SKYSIGMA']
 
             metadata['B%04dSLV' % (bit)] = skylevel
             metadata['B%04dSSG' % (bit)] = skysigma
