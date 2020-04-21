@@ -1,0 +1,8 @@
+outbase: 'testing'
+nside: 32768
+map_types:
+  exptime: ['sum']
+use_calexp_mask: True
+bad_mask_planes: ['BAD', 'NO_DATA', 'SAT', 'SUSPECT']
+detector_id_name: ccd
+visit_id_name: visit
