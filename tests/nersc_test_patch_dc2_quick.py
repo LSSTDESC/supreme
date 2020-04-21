@@ -11,23 +11,24 @@ import supreme
 import lsst.daf.persistence as dafPersist
 
 
-class TestPatchHscQuickTestCase(unittest.TestCase):
+class TestPatchDC2QuickTestCase(unittest.TestCase):
     """
-    Tests for running a single patch, quick mode, with HSC data on lsst-dev01
+    Tests for running a single patch, quick mode, with DC2 data on nersc
     """
     def test_patch_quick(self):
         """
         Test a single patch in quick mode
         """
-        repo = '/datasets/hsc/repo/rerun/RC/w_2020_07/DM-23564'
-        tract = 9615
-        filter_name = 'HSC-I'
-        patch = '2,2'
+        repo = '/global/cfs/cdirs/lsst/production/DC2_ImSim/Run2.2i/desc_dm_drp/' \
+            'v19.0.0-v1/rerun/run2.2i-coadd-wfd-dr3-v1'
+        tract = 2907
+        filter_name = 'i'
+        patch = '0,0'
 
-        self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestPatchHsc-')
+        self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestPatchDC2-')
 
         butler = dafPersist.Butler(repo)
-        config = supreme.Configuration(os.path.join('configs/config_quick_hsc.yaml'))
+        config = supreme.Configuration(os.path.join('configs/config_quick_dc2.yaml'))
 
         mapper = supreme.PatchMapper(butler, config, self.test_dir)
         mapper.run(filter_name, tract, patch, return_values_list=False)
@@ -37,8 +38,7 @@ class TestPatchHscQuickTestCase(unittest.TestCase):
                          'airmass_max', 'airmass_min', 'airmass_wmean',
                          'background_wmean', 'bgmean_wmean',
                          'exptime_sum', 'nexp_sum',
-                         'psf_size_wmean', 'psf_e1_wmean', 'psf_e2_wmean',
-                         'skylevel_wmean', 'skysigma_wmean']
+                         'psf_size_wmean', 'psf_e1_wmean', 'psf_e2_wmean']
 
         for em in expected_maps:
             map_name = os.path.join(self.test_dir, 'testing_%05d_%s_%s_%s.hs'
@@ -53,7 +53,7 @@ class TestPatchHscQuickTestCase(unittest.TestCase):
 
                 # Check the metadata
                 self.assertTrue(metadata['WIDEMASK'])
-                self.assertEqual(metadata['WWIDTH'], 7)
+                self.assertEqual(metadata['WWIDTH'], 8)
                 nccd = 0
                 nvis = 0
                 nwt = 0
@@ -61,7 +61,7 @@ class TestPatchHscQuickTestCase(unittest.TestCase):
                 nssg = 0
                 nbgm = 0
                 nbgv = 0
-                for i in range(55):
+                for i in range(100):
                     if 'B%04dCCD' % (i) in metadata:
                         nccd += 1
                     if 'B%04dVIS' % (i) in metadata:
@@ -77,7 +77,7 @@ class TestPatchHscQuickTestCase(unittest.TestCase):
                     if 'B%04dBGV' % (i) in metadata:
                         nbgv += 1
 
-                self.assertEqual(nccd, 50)
+                self.assertEqual(nccd, 62)
                 self.assertEqual(nvis, nccd)
                 self.assertEqual(nwt, nccd)
                 self.assertEqual(nslv, nccd)
@@ -91,23 +91,20 @@ class TestPatchHscQuickTestCase(unittest.TestCase):
                 self.assertLess(np.max(m.get_values_pix(valid_pixels)), 1.5)
                 self.assertGreater(np.max(m.get_values_pix(valid_pixels)), 1.0)
             elif em == 'background_wmean' or em == 'bgmean_wmean' or em == 'skylevel_wmean':
-                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 650.0)
-                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 500.0)
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 3200.0)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 1000.0)
             elif em == 'exptime_sum':
-                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 2001.0)
-                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 799.0)
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 841.0)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 29.0)
             elif em == 'nexp_sum':
-                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 10.1)
-                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 3.9)
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 28.1)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 0.9)
             elif em == 'psf_size_wmean':
-                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 1.5)
-                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 1.3)
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 2.3)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 1.5)
             elif em == 'psf_e1_wmean' or em == 'psf_e2_wmean':
-                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 0.1)
-                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), -0.05)
-            elif em == 'skysigma_wmean':
-                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 8.0)
-                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 6.5)
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 0.01)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), -0.025)
 
     def setUp(self):
         self.test_dir = None

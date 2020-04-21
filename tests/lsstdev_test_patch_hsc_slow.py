@@ -11,9 +11,9 @@ import supreme
 import lsst.daf.persistence as dafPersist
 
 
-class TestPatchHscSloeTestCase(unittest.TestCase):
+class TestPatchHscSlowTestCase(unittest.TestCase):
     """
-    Tests for running a single patch, quick mode, with HSC data on lsst-dev01
+    Tests for running a single patch, slow mode, with HSC data on lsst-dev01
     """
     def test_patch_slow(self):
         """
@@ -27,7 +27,7 @@ class TestPatchHscSloeTestCase(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestPatchHsc-')
 
         butler = dafPersist.Butler(repo)
-        config = supreme.Configuration(os.path.join('configs/config_slow.yaml'))
+        config = supreme.Configuration(os.path.join('configs/config_slow_hsc.yaml'))
 
         mapper = supreme.PatchMapper(butler, config, self.test_dir)
         mapper.run(filter_name, tract, patch, return_values_list=False)
