@@ -60,6 +60,10 @@ class TractMapper(object):
                                                                     tract,
                                                                     patch_name,
                                                                     return_values_list=True)
+                if patch_input_map is None:
+                    # This failed, no tract there.  Just continue
+                    continue
+
                 valid_pixels = patch_input_map.valid_pixels
 
                 for i, map_type in enumerate(self.config.map_types.keys()):
