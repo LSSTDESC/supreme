@@ -2,14 +2,15 @@ import os
 import numpy as np
 import healpy as hp
 import healsparse
+import esutil
 
 import lsst.geom
 import lsst.afw.math as afwMath
 
 from .utils import vertices_to_radec, pixels_to_radec, radec_to_pixels
-from .utils import OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX
+from .utils import OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX, OP_OR
 from .utils import approx_patch_polygon_area, op_str_to_code
-from .utils import convert_mask_to_bbox_list
+from .utils import convert_mask_to_bbox_list, bbox_to_radec_grid
 from .psf import get_approx_psf_size_and_shape
 
 
@@ -88,12 +89,17 @@ class PatchMapper(object):
             if map_type == 'skylevel' or map_type == 'skysigma' or \
                     map_type == 'bgmean' or map_type == 'background':
                 has_calibrated_quantity = True
-            if map_type == 'coadd_image' or map_type == 'coadd_variance' or \
-                    map_type == 'coadd_mask':
+            if map_type.startswith('coadd'):
                 has_coadd_quantity = True
 
+            # Specify maps that are integers not floats
+            if map_type in ['nexp', 'coadd_mask']:
+                map_dtype = np.int32
+            else:
+                map_dtype = np.float64
+
             n_operations = len(self.config.map_types[map_type])
-            map_values = np.zeros((valid_pixels.size, n_operations))
+            map_values = np.zeros((valid_pixels.size, n_operations), dtype=map_dtype)
             op_list = []
             for j, operation in enumerate(self.config.map_types[map_type]):
                 op_code = op_str_to_code(operation)
@@ -102,6 +108,12 @@ class PatchMapper(object):
                 if op_code == OP_MIN or op_code == OP_MAX:
                     # We use fmin and fmax, so nans get overwritten
                     map_values[:, j] = np.nan
+                if map_type in ['coadd_image', 'coadd_variance']:
+                    if op_code != OP_MEAN:
+                        raise RuntimeError("Coadd image, variance must only be MEAN")
+                elif map_type in ['coadd_mask']:
+                    if op_code != OP_OR:
+                        raise RuntimeError("Coadd mask must only be OR")
 
             map_values_list.append(map_values)
             map_operation_list.append(op_list)
@@ -201,29 +213,82 @@ class PatchMapper(object):
                         map_values_list[i][u, j] = np.fmin(map_values_list[i][u, j], values)
                     elif op == OP_MAX:
                         map_values_list[i][u, j] = np.fmax(map_values_list[i][u, j], values)
+                    elif op == OP_OR:
+                        # This is not actually supported by anything yet
+                        map_values_list[i][u, j] = np.bitwise_or(map_values_list[i][u, j],
+                                                                 values.astype(np.int64))
 
         if has_coadd_quantity:
-            """
-            # THIS DOES NOT WORK YET
-            # Get grid of coadd positions xy and radec
+            # Convert the coadd pixel grid to ra/dec
             coadd_xy, coadd_radec = bbox_to_radec_grid(exposure.getWcs(),
                                                        patch_info.getInnerBBox())
             coadd_origin = exposure.getBBox().getBegin()
+            coadd_xy[:, 0] -= coadd_origin.getX()
+            coadd_xy[:, 1] -= coadd_origin.getY()
 
             # Convert radec to healpix pixels
             hpix = hp.ang2pix(self.config.nside, coadd_radec[:, 0], coadd_radec[:, 1],
                               lonlat=True, nest=True)
-                              """
-            pass
+            minpix = np.min(hpix)
+            maxpix = np.max(hpix)
+
+            # Need to map the coadd pixels to the valid pixels
+            aa, bb = esutil.numpy_util.match(valid_pixels - minpix, np.arange(maxpix - minpix + 1))
+
+            npix_arr = np.zeros(maxpix - minpix + 1, dtype=np.int32)
+
+            np.add.at(npix_arr,
+                      hpix - minpix,
+                      1)
+            coadd_pix_use, = np.where(npix_arr > 0)
+
+            for i, map_type in enumerate(self.config.map_types.keys()):
+                if map_type == 'coadd_image':
+                    coadd_array = exposure.getImage().getArray()
+                elif map_type == 'coadd_variance':
+                    coadd_array = exposure.getVariance().getArray()
+                elif map_type == 'coadd_mask':
+                    coadd_array = exposure.getMask().getArray()
+                else:
+                    # Not a coadd map, skip this.
+                    continue
+
+                for j, op in enumerate(map_operation_list[i]):
+                    if op == OP_SUM or op == OP_MEAN:
+                        values_arr = np.zeros_like(npix_arr, dtype=np.float64)
+                        np.add.at(values_arr,
+                                  hpix - minpix,
+                                  coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
+                        if op == OP_MEAN:
+                            values_arr[coadd_pix_use] /= npix_arr[coadd_pix_use]
+                    elif op == OP_MIN:
+                        values_arr = np.zeros_like(npix_arr, dtype=np.float64) + np.nan
+                        np.fmin.at(values_arr,
+                                   hpix - minpix,
+                                   coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
+                    elif op == OP_MAX:
+                        values_arr = np.zeros_like(npix_arr, dtype=np.float64) + np.nan
+                        np.fmax.at(values_arr,
+                                   hpix - minpix,
+                                   coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
+                    elif op == OP_OR:
+                        values_arr = np.zeros_like(npix_arr, dtype=np.int32)
+                        np.bitwise_or.at(values_arr,
+                                         hpix - minpix,
+                                         coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
+
+                # And convert these back to the map_values array
+                map_values_list[i][aa, j] = values_arr[bb]
 
         # And we've done all the accumulations, finish the mean/wmean
         # And turn these into maps
         for i, map_type in enumerate(self.config.map_types.keys()):
             for j, op in enumerate(map_operation_list[i]):
-                if op == OP_MEAN:
-                    map_values_list[i][:, j] /= nexp
-                elif op == OP_WMEAN:
-                    map_values_list[i][:, j] /= weights
+                if not map_type.startswith('coadd'):
+                    if op == OP_MEAN:
+                        map_values_list[i][:, j] /= nexp
+                    elif op == OP_WMEAN:
+                        map_values_list[i][:, j] /= weights
 
                 if not return_values_list:
                     # Here we want to save the patch map
@@ -235,7 +300,7 @@ class PatchMapper(object):
                                                                         op))
                     temp_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_patch,
                                                                    nside_sparse=self.config.nside,
-                                                                   dtype=np.float64)
+                                                                   dtype=map_values_list[i][:, j].dtype)
                     temp_map.update_values_pix(valid_pixels, map_values_list[i][:, j])
                     temp_map.write(fname)
 

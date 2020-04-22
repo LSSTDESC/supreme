@@ -10,6 +10,7 @@ OP_MEAN = 2
 OP_WMEAN = 3
 OP_MIN = 4
 OP_MAX = 5
+OP_OR = 6
 
 
 def op_code_to_str(op_code):
@@ -23,6 +24,8 @@ def op_code_to_str(op_code):
         op_str = 'min'
     elif op_code == OP_MAX:
         op_str = 'max'
+    elif op_code == OP_OR:
+        op_str = 'or'
 
     return op_str
 
@@ -38,6 +41,8 @@ def op_str_to_code(op_str):
         op_code = OP_MIN
     elif op_str == 'max':
         op_code = OP_MAX
+    elif op_str == 'or':
+        op_code = OP_OR
 
     return op_code
 
@@ -85,42 +90,56 @@ def pixels_to_radec(wcs, pixels):
 def xy_to_radec(wcs, x, y):
     """
     """
-    trans = wcs.getTransform()
-    mapping = trans.getMapping()
     xy = np.vstack((x, y))
-    rd = mapping.applyForward(xy)
-    rd[0, :] = rd[0, :] % (2*np.pi)
-    return np.rad2deg(rd.T)
+    rd = np.rad2deg(wcs.getTransform().getMapping().applyForward(xy))
+    rd[0, :] = rd[0, :] % (360.0)
+    return rd.T
 
 
 def radec_to_xy(wcs, ra, dec):
     """
     """
-    trans = wcs.getTransform()
-    mapping = trans.getMapping()
-    rd = np.vstack((np.deg2rad(ra), np.deg2rad(dec)))
-    xy = mapping.applyInverse(rd)
+    xy = wcs.getTransform().getMapping().applyInverse(np.deg2rad(np.vstack((ra, dec))))
     return xy.T
 
 
-def bbox_to_radec_grid(wcs, bbox):
+def bbox_to_radec_grid(wcs, bbox, tol=1e-7):
     """
+    Create an ra/dec grid aligned with pixels from a bounding box.
+
+    Parameters
+    ----------
+    wcs : `lsst.afw.geom.SkyWcs`
+        WCS object
+    bbox : `lsst.geom.Box2I`
+        Bounding box
+    tol : `float`
+        Tolerance for WCS grid approximation
+
+    Returns
+    -------
+    xy : `numpy.ndarray`
+        (nx*ny)x2 array with with x ([:, 0]) and y ([:, 1]) pixel values
+        of generated grid points
+    radec : `numpy.ndarray`
+        (nx*ny)x2 array with RA ([:, 0]) and Dec ([:, 1]) positions of
+        generated grid points (in degrees)
     """
-    # THIS DOES NOT WORK WITH NON-ZERO ORIGIN BOXES ... TBD...
     trans = wcs.getTransform()
     mapping = trans.getMapping()
-
     temp = mapping.tranGridForward([bbox.getBeginX(), bbox.getBeginY()],
                                    [bbox.getEndX() - 1, bbox.getEndY() - 1],
-                                   1e-7,
+                                   tol,
                                    max([bbox.getEndX(), bbox.getEndY()]),
-                                   bbox.getEndX()*bbox.getEndY()).flatten()
+                                   bbox.getArea()).flatten()
     radec = np.zeros((temp.size // 2, 2))
-    radec[:, 0] = np.rad2deg(temp[0: temp.size // 2] % (2*np.pi))
+    radec[:, 0] = np.rad2deg(temp[0: temp.size // 2]) % 360.0
     radec[:, 1] = np.rad2deg(temp[temp.size // 2:])
     xy = np.zeros_like(radec, dtype=np.int32)
-    xy[:, 0] = np.tile(np.arange(bbox.getEndX()), bbox.getEndY())
-    xy[:, 1] = np.repeat(np.arange(bbox.getEndY()), bbox.getEndX())
+    xy[:, 0] = np.tile(np.arange(bbox.getDimensions().getX()),
+                       bbox.getDimensions().getY()) + bbox.getBeginX()
+    xy[:, 1] = np.repeat(np.arange(bbox.getDimensions().getY()),
+                         bbox.getDimensions().getX()) + bbox.getBeginY()
 
     return xy, radec
 
