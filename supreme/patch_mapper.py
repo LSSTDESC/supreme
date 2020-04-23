@@ -7,7 +7,7 @@ import esutil
 import lsst.geom
 import lsst.afw.math as afwMath
 
-from .utils import vertices_to_radec, pixels_to_radec, radec_to_pixels
+from .utils import vertices_to_radec, pixels_to_radec, radec_to_xy
 from .utils import OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX, OP_OR
 from .utils import approx_patch_polygon_area, op_str_to_code
 from .utils import convert_mask_to_bbox_list, bbox_to_radec_grid
@@ -46,13 +46,7 @@ class PatchMapper(object):
         patch_indices = [int(x) for x in patch_name.split(',')]
         patch_info = tract_info.getPatchInfo(patch_indices)
 
-        # Compute the optimal coverage nside for the size of the patch
-        # This does not need to match the tract coverage map!
-        patch_area = approx_patch_polygon_area(patch_info, tract_info.getWcs())
-        nside_coverage_patch = 32
-        while hp.nside2pixarea(nside_coverage_patch, degrees=True) > patch_area:
-            nside_coverage_patch = int(2*nside_coverage_patch)
-        nside_coverage_patch = int(nside_coverage_patch / 2)
+        nside_coverage_patch = self._compute_nside_coverage_patch(patch_info, tract_info)
 
         exposure = self.butler.get('deepCoadd', tract=tract, patch=patch_name, filter=filter_name)
         info = exposure.getInfo()
@@ -80,7 +74,7 @@ class PatchMapper(object):
         has_calibrated_quantity = False
         has_coadd_quantity = False
         map_values_list = []
-        map_operation_list = []
+        self.map_operation_list = []
         for map_type in self.config.map_types.keys():
             if map_type == 'psf_size' or map_type == 'psf_e1' or map_type == 'psf_e2':
                 has_psf_quantity = True
@@ -116,7 +110,7 @@ class PatchMapper(object):
                         raise RuntimeError("Coadd mask must only be OR")
 
             map_values_list.append(map_values)
-            map_operation_list.append(op_list)
+            self.map_operation_list.append(op_list)
 
         metadata = patch_input_map.metadata
         weights = np.zeros(valid_pixels.size)
@@ -155,15 +149,8 @@ class PatchMapper(object):
                     bgmean = calexp_metadata['BGMEAN']
 
             if has_calibrated_quantity:
-                photoCalib = ccd.getPhotoCalib()
-                bf = photoCalib.computeScaledCalibration()
-                pixels, xy = radec_to_pixels(ccd.getWcs(), ra[u], dec[u])
-                if bf.getBBox() == ccd.getBBox():
-                    # This is a variable calibration, track variability
-                    calib_scale = photoCalib.getCalibrationMean() * bf.evaluate(xy[:, 0], xy[:, 1])
-                else:
-                    # This is a spatially constant calibration
-                    calib_scale = photoCalib.getCalibrationMean()
+                xy = radec_to_xy(ccd.getWcs(), ra[u], dec[u])
+                calib_scale = self._compute_calib_scale(ccd, xy)
 
             for i, map_type in enumerate(self.config.map_types.keys()):
                 if map_type == 'psf_size':
@@ -185,24 +172,14 @@ class PatchMapper(object):
                 elif map_type == 'bgmean':
                     values = bgmean*calib_scale
                 elif map_type == 'background':
-                    bkg = self.butler.get('calexpBackground', dataId=dataId)
-                    bkgImage = bkg.getImage()
-                    if self.butler.datasetExists('skyCorr', dataId=dataId):
-                        skyCorr = self.butler.get('skyCorr', dataId=dataId)
-                        bkgImage += skyCorr.getImage()
-
-                    # Take the background at the given pixel.  Since this
-                    # is a smooth map anyway, this should be fine and we
-                    # don't need to average over the full coverage
-                    values = bkgImage.getArray()[xy[:, 1].astype(np.int32),
-                                                 xy[:, 0].astype(np.int32)]
+                    values = self._compute_calexp_background(dataId, xy)
                     values *= calib_scale
                 elif map_type.startswith('coadd'):
                     continue
                 else:
                     raise ValueError("Illegal map type %s" % (map_type))
 
-                for j, op in enumerate(map_operation_list[i]):
+                for j, op in enumerate(self.map_operation_list[i]):
                     if op == OP_SUM:
                         map_values_list[i][u, j] += values
                     elif op == OP_MEAN:
@@ -219,71 +196,12 @@ class PatchMapper(object):
                                                                  values.astype(np.int64))
 
         if has_coadd_quantity:
-            # Convert the coadd pixel grid to ra/dec
-            coadd_xy, coadd_radec = bbox_to_radec_grid(exposure.getWcs(),
-                                                       patch_info.getInnerBBox())
-            coadd_origin = exposure.getBBox().getBegin()
-            coadd_xy[:, 0] -= coadd_origin.getX()
-            coadd_xy[:, 1] -= coadd_origin.getY()
-
-            # Convert radec to healpix pixels
-            hpix = hp.ang2pix(self.config.nside, coadd_radec[:, 0], coadd_radec[:, 1],
-                              lonlat=True, nest=True)
-            minpix = np.min(hpix)
-            maxpix = np.max(hpix)
-
-            # Need to map the coadd pixels to the valid pixels
-            aa, bb = esutil.numpy_util.match(valid_pixels - minpix, np.arange(maxpix - minpix + 1))
-
-            npix_arr = np.zeros(maxpix - minpix + 1, dtype=np.int32)
-
-            np.add.at(npix_arr,
-                      hpix - minpix,
-                      1)
-            coadd_pix_use, = np.where(npix_arr > 0)
-
-            for i, map_type in enumerate(self.config.map_types.keys()):
-                if map_type == 'coadd_image':
-                    coadd_array = exposure.getImage().getArray()
-                elif map_type == 'coadd_variance':
-                    coadd_array = exposure.getVariance().getArray()
-                elif map_type == 'coadd_mask':
-                    coadd_array = exposure.getMask().getArray()
-                else:
-                    # Not a coadd map, skip this.
-                    continue
-
-                for j, op in enumerate(map_operation_list[i]):
-                    if op == OP_SUM or op == OP_MEAN:
-                        values_arr = np.zeros_like(npix_arr, dtype=np.float64)
-                        np.add.at(values_arr,
-                                  hpix - minpix,
-                                  coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
-                        if op == OP_MEAN:
-                            values_arr[coadd_pix_use] /= npix_arr[coadd_pix_use]
-                    elif op == OP_MIN:
-                        values_arr = np.zeros_like(npix_arr, dtype=np.float64) + np.nan
-                        np.fmin.at(values_arr,
-                                   hpix - minpix,
-                                   coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
-                    elif op == OP_MAX:
-                        values_arr = np.zeros_like(npix_arr, dtype=np.float64) + np.nan
-                        np.fmax.at(values_arr,
-                                   hpix - minpix,
-                                   coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
-                    elif op == OP_OR:
-                        values_arr = np.zeros_like(npix_arr, dtype=np.int32)
-                        np.bitwise_or.at(values_arr,
-                                         hpix - minpix,
-                                         coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
-
-                # And convert these back to the map_values array
-                map_values_list[i][aa, j] = values_arr[bb]
+            self._update_coadd_map_values(exposure, patch_info, valid_pixels, map_values_list)
 
         # And we've done all the accumulations, finish the mean/wmean
         # And turn these into maps
         for i, map_type in enumerate(self.config.map_types.keys()):
-            for j, op in enumerate(map_operation_list[i]):
+            for j, op in enumerate(self.map_operation_list[i]):
                 if not map_type.startswith('coadd'):
                     if op == OP_MEAN:
                         map_values_list[i][:, j] /= nexp
@@ -357,22 +275,7 @@ class PatchMapper(object):
 
                 if 'SKYLEVEL' not in calexp_metadata:
                     # We must recompute skylevel, skysigma
-
-                    # We need to re-add in the background
-                    bkg = self.butler.get('calexpBackground', dataId=dataId)
-
-                    statsControl = afwMath.StatisticsControl(3.0, 3)
-                    maskVal = calexp.getMaskedImage().getMask().getPlaneBitMask(["BAD",
-                                                                                 "SAT",
-                                                                                 "DETECTED"])
-                    statsControl.setAndMask(maskVal)
-                    maskedImage = calexp.getMaskedImage()
-                    maskedImage += bkg.getImage()
-                    stats = afwMath.makeStatistics(maskedImage, afwMath.MEDIAN | afwMath.STDEVCLIP,
-                                                   statsControl)
-                    skylevel = stats.getValue(afwMath.MEDIAN)
-                    skysigma = stats.getValue(afwMath.STDEVCLIP)
-                    del maskedImage
+                    skylevel, skysigma = self._compute_skylevel(dataId, calexp)
                 else:
                     skylevel = calexp_metadata['SKYLEVEL']
                     skysigma = calexp_metadata['SKYSIGMA']
@@ -411,3 +314,132 @@ class PatchMapper(object):
         patch_input_map.metadata = metadata
 
         return patch_input_map
+
+    def _compute_skylevel(self, dataId, calexp):
+        """
+        Compute the skylevel and skysigma
+        """
+        bkg = self.butler.get('calexpBackground', dataId=dataId)
+
+        statsControl = afwMath.StatisticsControl(3.0, 3)
+        maskVal = calexp.getMaskedImage().getMask().getPlaneBitMask(["BAD",
+                                                                     "SAT",
+                                                                     "DETECTED"])
+        statsControl.setAndMask(maskVal)
+        maskedImage = calexp.getMaskedImage()
+        maskedImage += bkg.getImage()
+        stats = afwMath.makeStatistics(maskedImage, afwMath.MEDIAN | afwMath.STDEVCLIP,
+                                       statsControl)
+        skylevel = stats.getValue(afwMath.MEDIAN)
+        skysigma = stats.getValue(afwMath.STDEVCLIP)
+        del maskedImage
+
+        return skylevel, skysigma
+
+    def _compute_calib_scale(self, ccd, xy):
+        """
+        """
+        photoCalib = ccd.getPhotoCalib()
+        bf = photoCalib.computeScaledCalibration()
+        if bf.getBBox() == ccd.getBBox():
+            # This is a variable calibration, track variability
+            calib_scale = photoCalib.getCalibrationMean() * bf.evaluate(xy[:, 0], xy[:, 1])
+        else:
+            # This is a spatially constant calibration
+            calib_scale = photoCalib.getCalibrationMean()
+
+        return calib_scale
+
+    def _compute_calexp_background(self, dataId, xy):
+        """
+        """
+        bkg = self.butler.get('calexpBackground', dataId=dataId)
+        bkgImage = bkg.getImage()
+        if self.butler.datasetExists('skyCorr', dataId=dataId):
+            skyCorr = self.butler.get('skyCorr', dataId=dataId)
+            bkgImage += skyCorr.getImage()
+
+        # Take the background at the given pixel.  Since this
+        # is a smooth map anyway, this should be fine and we
+        # don't need to average over the full coverage
+        values = bkgImage.getArray()[xy[:, 1].astype(np.int32),
+                                     xy[:, 0].astype(np.int32)]
+
+        return values
+
+    def _update_coadd_map_values(self, exposure, patch_info, valid_pixels, map_values_list):
+        """
+        """
+        # Convert the coadd pixel grid to ra/dec
+        coadd_xy, coadd_radec = bbox_to_radec_grid(exposure.getWcs(),
+                                                   patch_info.getInnerBBox())
+        coadd_origin = exposure.getBBox().getBegin()
+        coadd_xy[:, 0] -= coadd_origin.getX()
+        coadd_xy[:, 1] -= coadd_origin.getY()
+
+        # Convert radec to healpix pixels
+        hpix = hp.ang2pix(self.config.nside, coadd_radec[:, 0], coadd_radec[:, 1],
+                          lonlat=True, nest=True)
+        minpix = np.min(hpix)
+        maxpix = np.max(hpix)
+
+        # Need to map the coadd pixels to the valid pixels
+        aa, bb = esutil.numpy_util.match(valid_pixels - minpix, np.arange(maxpix - minpix + 1))
+
+        npix_arr = np.zeros(maxpix - minpix + 1, dtype=np.int32)
+
+        np.add.at(npix_arr,
+                  hpix - minpix,
+                  1)
+        coadd_pix_use, = np.where(npix_arr > 0)
+
+        for i, map_type in enumerate(self.config.map_types.keys()):
+            if map_type == 'coadd_image':
+                coadd_array = exposure.getImage().getArray()
+            elif map_type == 'coadd_variance':
+                coadd_array = exposure.getVariance().getArray()
+            elif map_type == 'coadd_mask':
+                coadd_array = exposure.getMask().getArray()
+            else:
+                # Not a coadd map, skip this.
+                continue
+
+            for j, op in enumerate(self.map_operation_list[i]):
+                if op == OP_SUM or op == OP_MEAN:
+                    values_arr = np.zeros_like(npix_arr, dtype=np.float64)
+                    np.add.at(values_arr,
+                              hpix - minpix,
+                              coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
+                    if op == OP_MEAN:
+                        values_arr[coadd_pix_use] /= npix_arr[coadd_pix_use]
+                elif op == OP_MIN:
+                    values_arr = np.zeros_like(npix_arr, dtype=np.float64) + np.nan
+                    np.fmin.at(values_arr,
+                               hpix - minpix,
+                               coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
+                elif op == OP_MAX:
+                    values_arr = np.zeros_like(npix_arr, dtype=np.float64) + np.nan
+                    np.fmax.at(values_arr,
+                               hpix - minpix,
+                               coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
+                elif op == OP_OR:
+                    values_arr = np.zeros_like(npix_arr, dtype=np.int32)
+                    np.bitwise_or.at(values_arr,
+                                     hpix - minpix,
+                                     coadd_array[coadd_xy[:, 1], coadd_xy[:, 0]])
+
+            # And convert these back to the map_values array
+            map_values_list[i][aa, j] = values_arr[bb]
+
+    def _compute_nside_coverage_patch(self, patch_info, tract_info):
+        """
+        """
+        # Compute the optimal coverage nside for the size of the patch
+        # This does not need to match the tract coverage map!
+        patch_area = approx_patch_polygon_area(patch_info, tract_info.getWcs())
+        nside_coverage_patch = 32
+        while hp.nside2pixarea(nside_coverage_patch, degrees=True) > patch_area:
+            nside_coverage_patch = int(2*nside_coverage_patch)
+        nside_coverage_patch = int(nside_coverage_patch / 2)
+
+        return nside_coverage_patch
