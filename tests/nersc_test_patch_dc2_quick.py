@@ -38,7 +38,8 @@ class TestPatchDC2QuickTestCase(unittest.TestCase):
                          'airmass_max', 'airmass_min', 'airmass_wmean',
                          'background_wmean', 'bgmean_wmean',
                          'exptime_sum', 'nexp_sum',
-                         'psf_size_wmean', 'psf_e1_wmean', 'psf_e2_wmean']
+                         'psf_size_wmean', 'psf_e1_wmean', 'psf_e2_wmean',
+                         'coadd_image_mean', 'coadd_variance_mean', 'coadd_mask_or']
 
         for em in expected_maps:
             map_name = os.path.join(self.test_dir, 'testing_%05d_%s_%s_%s.hs'
@@ -97,6 +98,7 @@ class TestPatchDC2QuickTestCase(unittest.TestCase):
                 self.assertLess(np.max(m.get_values_pix(valid_pixels)), 841.0)
                 self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 29.0)
             elif em == 'nexp_sum':
+                self.assertEqual(m.dtype.name, 'int32')
                 self.assertLess(np.max(m.get_values_pix(valid_pixels)), 28.1)
                 self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 0.9)
             elif em == 'psf_size_wmean':
@@ -105,6 +107,16 @@ class TestPatchDC2QuickTestCase(unittest.TestCase):
             elif em == 'psf_e1_wmean' or em == 'psf_e2_wmean':
                 self.assertLess(np.max(m.get_values_pix(valid_pixels)), 0.01)
                 self.assertGreater(np.min(m.get_values_pix(valid_pixels)), -0.025)
+            elif em == 'coadd_image_mean':
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 60.0)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), -1.0)
+            elif em == 'coadd_variance_mean':
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 1.0)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 0.01)
+            elif em == 'coadd_mask_or':
+                self.assertEqual(m.dtype.name, 'int32')
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 56000)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), -1)
 
     def setUp(self):
         self.test_dir = None
