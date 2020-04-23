@@ -146,7 +146,12 @@ class PatchMapper(object):
                 photoCalib = ccd.getPhotoCalib()
                 bf = photoCalib.computeScaledCalibration()
                 pixels, xy = radec_to_pixels(ccd.getWcs(), ra[u], dec[u])
-                calib_scale = photoCalib.getCalibrationMean() * bf.evaluate(xy[:, 0], xy[:, 1])
+                if bf.getBBox() == ccd.getBBox():
+                    # This is a variable calibration, track variability
+                    calib_scale = photoCalib.getCalibrationMean() * bf.evaluate(xy[:, 0], xy[:, 1])
+                else:
+                    # This is a spatially constant calibration
+                    calib_scale = photoCalib.getCalibrationMean()
 
             for i, map_type in enumerate(self.config.map_types.keys()):
                 if map_type == 'psf_size':

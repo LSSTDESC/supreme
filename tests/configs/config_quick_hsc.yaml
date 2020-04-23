@@ -1,0 +1,16 @@
+outbase: 'testing'
+nside: 32768
+map_types:
+  exptime: ['sum']
+  nexp: ['sum']
+  airmass: ['min', 'max', 'wmean']
+  psf_size: ['wmean']
+  psf_e1: ['wmean']
+  psf_e2: ['wmean']
+  skylevel: ['wmean']
+  skysigma: ['wmean']
+  bgmean: ['wmean']
+  background: ['wmean']
+use_calexp_mask: False
+detector_id_name: ccd
+visit_id_name: visit
