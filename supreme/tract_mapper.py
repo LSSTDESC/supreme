@@ -40,18 +40,20 @@ class TractMapper(object):
 
         tract_map_list = []
         map_operation_list = []
-        for map_type in self.config.map_types.keys():
-            op_list = []
-            op_map_list = []
-            for j, operation in enumerate(self.config.map_types[map_type]):
-                tract_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_tract,
-                                                                nside_sparse=self.config.nside,
-                                                                dtype=np.float64)
-                op_map_list.append(tract_map)
-                op_list.append(op_str_to_code(operation))
-            tract_map_list.append(op_map_list)
-            map_operation_list.append(op_list)
-
+        """
+        # for map_type in self.config.map_types.keys():
+        #     op_list = []
+            # op_map_list = []
+        #     for j, operation in enumerate(self.config.map_types[map_type]):
+                # tract_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_tract,
+                #                                                 nside_sparse=self.config.nside,
+                #                                                 dtype=np.float64)
+                # op_map_list.append(tract_map)
+         #        op_list.append(op_str_to_code(operation))
+            # tract_map_list.append(op_map_list)
+        #     map_operation_list.append(op_list)
+        """
+        started = False
         for ii in range(num_patches[0]):
             for jj in range(num_patches[1]):
                 patch_name = '%d,%d' % (ii, jj)
@@ -67,9 +69,31 @@ class TractMapper(object):
                 valid_pixels = patch_input_map.valid_pixels
 
                 for i, map_type in enumerate(self.config.map_types.keys()):
+                    if not started:
+                        # First run initialization
+                        op_map_list = []
+                        op_list = []
+
+                        for j, operation in enumerate(self.config.map_types[map_type]):
+                            nct = nside_coverage_tract
+                            ns = self.config.nside
+                            dt = map_values_list[i][:, j].dtype
+                            tract_map = healsparse.HealSparseMap.make_empty(nside_coverage=nct,
+                                                                            nside_sparse=ns,
+                                                                            dtype=dt)
+                            op_map_list.append(tract_map)
+                            op_list.append(op_str_to_code(operation))
+
+                        tract_map_list.append(op_map_list)
+                        map_operation_list.append(op_list)
+
+                    # First and subsequent runs
                     for j, op in enumerate(map_operation_list[i]):
                         tract_map_list[i][j].update_values_pix(valid_pixels,
                                                                map_values_list[i][:, j])
+
+                # Note that we started the maps
+                started = True
 
         # We are done assembling
         for i, map_type in enumerate(self.config.map_types.keys()):

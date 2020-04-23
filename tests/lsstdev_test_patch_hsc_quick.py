@@ -38,7 +38,8 @@ class TestPatchHscQuickTestCase(unittest.TestCase):
                          'background_wmean', 'bgmean_wmean',
                          'exptime_sum', 'nexp_sum',
                          'psf_size_wmean', 'psf_e1_wmean', 'psf_e2_wmean',
-                         'skylevel_wmean', 'skysigma_wmean']
+                         'skylevel_wmean', 'skysigma_wmean',
+                         'coadd_image_mean', 'coadd_variance_mean', 'coadd_mask_or']
 
         for em in expected_maps:
             map_name = os.path.join(self.test_dir, 'testing_%05d_%s_%s_%s.hs'
@@ -97,6 +98,7 @@ class TestPatchHscQuickTestCase(unittest.TestCase):
                 self.assertLess(np.max(m.get_values_pix(valid_pixels)), 2001.0)
                 self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 799.0)
             elif em == 'nexp_sum':
+                self.assertEqual(m.dtype.name, 'int32')
                 self.assertLess(np.max(m.get_values_pix(valid_pixels)), 10.1)
                 self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 3.9)
             elif em == 'psf_size_wmean':
@@ -108,6 +110,16 @@ class TestPatchHscQuickTestCase(unittest.TestCase):
             elif em == 'skysigma_wmean':
                 self.assertLess(np.max(m.get_values_pix(valid_pixels)), 8.0)
                 self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 6.5)
+            elif em == 'coadd_image_mean':
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 30.0)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), -1.0)
+            elif em == 'coadd_variance_mean':
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 0.03)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), 0.001)
+            elif em == 'coadd_mask_or':
+                self.assertEqual(m.dtype.name, 'int32')
+                self.assertLess(np.max(m.get_values_pix(valid_pixels)), 56000)
+                self.assertGreater(np.min(m.get_values_pix(valid_pixels)), -1)
 
     def setUp(self):
         self.test_dir = None
