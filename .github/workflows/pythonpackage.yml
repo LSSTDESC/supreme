@@ -1,7 +1,4 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-
-name: Python package
+name: Python Package on LSST Stack
 
 on:
   push:
@@ -9,35 +6,48 @@ on:
   pull_request:
     branches: [ master ]
 
+env:
+  HOME: /home/lsst
+
 jobs:
   build:
 
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.7]
+    container: lsstsqre/centos:7-stack-lsst_distrib-v19_0_0
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
-      with:
-        python-version: ${{ matrix.python-version }}
+    - name: Install git
+      run: |
+        cd $HOME
+        source /opt/lsst/software/stack/loadLSST.bash
+        setup lsst_distrib
+        conda install -y git
+    - name: Check out code
+      run: |
+        cd $HOME
+        source /opt/lsst/software/stack/loadLSST.bash
+        setup lsst_distrib
+        git clone https://github.com/${GITHUB_REPOSITORY}
+        cd supreme
+        git fetch origin ${GITHUB_REF}:TESTING
+        git checkout TESTING
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
+        cd $HOME/supreme
+        source /opt/lsst/software/stack/loadLSST.bash
+        setup lsst_distrib
         pip install -r requirements.txt
         pip install .[full]
     - name: Lint with flake8
       run: |
-        pip install flake8
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=100 --max-line-length=127 --statistics
+        cd $HOME/supreme
+        source /opt/lsst/software/stack/loadLSST.bash
+        setup lsst_distrib
+        # stop the build if it fails flake8 with default setup.cfg
+        flake8 . --count --show-source --statistics
     - name: Test with pytest
       run: |
-        pip install pytest
-        # Do not run pytest until I can figure out how to test
-        # against the dm stack
-        # pytest
+        cd $HOME/supreme
+        source /opt/lsst/software/stack/loadLSST.bash
+        setup lsst_distrib
+        pytest
