@@ -306,7 +306,10 @@ class PatchMapper(object):
         # Realize the patch polygon
         patch_poly_map = patch_poly.get_map_like(patch_input_map)
         # Combine all masked ccd polygons
-        patch_input_map = healsparse.or_union(poly_map_list)
+        if len(poly_map_list) == 1:
+            patch_input_map = poly_map_list[0]
+        else:
+            patch_input_map = healsparse.or_union(poly_map_list)
         # And limit to the patch polygon
         patch_input_map = healsparse.and_intersection([patch_input_map, patch_poly_map])
 
