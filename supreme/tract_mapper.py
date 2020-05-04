@@ -40,19 +40,7 @@ class TractMapper(object):
 
         tract_map_list = []
         map_operation_list = []
-        """
-        # for map_type in self.config.map_types.keys():
-        #     op_list = []
-            # op_map_list = []
-        #     for j, operation in enumerate(self.config.map_types[map_type]):
-                # tract_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_tract,
-                #                                                 nside_sparse=self.config.nside,
-                #                                                 dtype=np.float64)
-                # op_map_list.append(tract_map)
-         #        op_list.append(op_str_to_code(operation))
-            # tract_map_list.append(op_map_list)
-        #     map_operation_list.append(op_list)
-        """
+
         started = False
         for ii in range(num_patches[0]):
             for jj in range(num_patches[1]):
