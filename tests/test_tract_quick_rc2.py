@@ -44,6 +44,22 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
 
         self.check_expected_maps_tract(expected_dict, tract, filter_name)
 
+    def test_tract_quick_nofilter(self):
+        """
+        Test building a tract that doesn't exist
+        """
+        repo = os.path.join(self.data_dir, 'supreme', 'testdata', 'RC2_test', 'rerun', 'coadd')
+        tract = 9697
+        filter_name = 'HSC-R'
+
+        self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestPatchHsc-')
+
+        butler = dafPersist.Butler(repo)
+        config = supreme.Configuration(os.path.join('configs/config_quick_tract_rc2.yaml'))
+
+        mapper = supreme.TractMapper(butler, config, self.test_dir)
+        mapper.run(filter_name, tract)
+
 
 if __name__ == '__main__':
     unittest.main()

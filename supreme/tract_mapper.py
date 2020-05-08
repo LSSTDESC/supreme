@@ -42,6 +42,7 @@ class TractMapper(object):
         map_operation_list = []
 
         started = False
+        n_success = 0
         for ii in range(num_patches[0]):
             for jj in range(num_patches[1]):
                 patch_name = '%d,%d' % (ii, jj)
@@ -53,6 +54,8 @@ class TractMapper(object):
                 if patch_input_map is None:
                     # This failed, no tract there.  Just continue
                     continue
+
+                n_success += 1
 
                 valid_pixels = patch_input_map.valid_pixels
 
@@ -82,6 +85,14 @@ class TractMapper(object):
 
                 # Note that we started the maps
                 started = True
+
+        if n_success == 0:
+            print('No patch coadds found for tract %d / filter %s' %
+                  (tract, filter_name))
+            return
+        else:
+            print('%d patch coadds found for tract %d / filter %s' %
+                  (n_success, tract, filter_name))
 
         # We are done assembling
         for i, map_type in enumerate(self.config.map_types.keys()):
