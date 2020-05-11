@@ -380,6 +380,14 @@ class PatchMapper(object):
         coadd_xy[:, 0] -= coadd_origin.getX()
         coadd_xy[:, 1] -= coadd_origin.getY()
 
+        # Apply the mask, to remove pixels with no coadd data
+        mask = exposure.getMask()
+        mask_array = mask.getArray()
+        good, = np.where((mask_array[coadd_xy[:, 1], coadd_xy[:, 0]] &
+                          2**mask.getMaskPlaneDict()['NO_DATA']) == 0)
+        coadd_xy = coadd_xy[good, :]
+        coadd_radec = coadd_radec[good, :]
+
         # Convert radec to healpix pixels
         hpix = hp.ang2pix(self.config.nside, coadd_radec[:, 0], coadd_radec[:, 1],
                           lonlat=True, nest=True)
