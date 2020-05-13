@@ -15,3 +15,4 @@ map_types:
 use_calexp_mask: False
 detector_id_name: detector
 visit_id_name: visit
+
