@@ -5,7 +5,8 @@ exec(open('supreme/_version.py').read())
 name = 'supreme'
 
 scripts = ['scripts/supreme_map_patch.py',
-           'scripts/supreme_map_tract.py']
+           'scripts/supreme_map_tract.py',
+           'scripts/supreme_mapper.py']
 
 setup(
     name=name,

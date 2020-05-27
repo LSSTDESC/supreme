@@ -22,21 +22,22 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
         except LookupError:
             raise unittest.SkipTest("supreme_testdata not setup")
 
+        cls.repo = os.path.join(cls.data_dir, 'supreme', 'testdata', 'RC2_test', 'rerun', 'coadd')
+        cls.butler = dafPersist.Butler(cls.repo)
+
     def test_tract_quick(self):
         """
         Test a single RC2 tract in quick mode
         """
-        repo = os.path.join(self.data_dir, 'supreme', 'testdata', 'RC2_test', 'rerun', 'coadd')
         tract = 9697
         filter_name = 'HSC-I'
 
         self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestPatchHsc-')
 
-        butler = dafPersist.Butler(repo)
         config = supreme.Configuration(os.path.join('configs/config_quick_tract_rc2.yaml'))
 
-        mapper = supreme.TractMapper(butler, config, self.test_dir)
-        mapper.run(filter_name, tract)
+        mapper = supreme.MultiMapper(self.butler, config, self.test_dir, ncores=1)
+        mapper.run([tract], [filter_name])
 
         expected_dict = OrderedDict()
         expected_dict['patch_inputs'] = [4500, '2,1', '2,2']
@@ -48,17 +49,15 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
         """
         Test building a tract that doesn't exist
         """
-        repo = os.path.join(self.data_dir, 'supreme', 'testdata', 'RC2_test', 'rerun', 'coadd')
         tract = 9697
         filter_name = 'HSC-R'
 
         self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestPatchHsc-')
 
-        butler = dafPersist.Butler(repo)
         config = supreme.Configuration(os.path.join('configs/config_quick_tract_rc2.yaml'))
 
-        mapper = supreme.TractMapper(butler, config, self.test_dir)
-        mapper.run(filter_name, tract)
+        mapper = supreme.MultiMapper(self.butler, config, self.test_dir)
+        mapper.run([tract], [filter_name])
 
 
 if __name__ == '__main__':
