@@ -14,22 +14,28 @@ from .utils import convert_mask_to_bbox_list, bbox_to_radec_grid
 from .psf import get_approx_psf_size_and_shape
 
 
+def pool_initializer(butler, config):
+    global _butler
+    global _config
+    _butler = butler
+    _config = config
+
+
 class PatchMapper(object):
     """
     Map a patch.
     """
-    def __init__(self, butler, config, outputpath):
+    def __init__(self, outputpath):
         """
         """
-        self.butler = butler
-
-        self.config = config
-
         self.outputpath = outputpath
 
     def __call__(self, tract, filter_name, patch_name, return_values_list=True):
         """
         """
+        # Copy in global butler for multiprocessing
+        self.butler = _butler
+        self.config = _config
 
         if not self.butler.datasetExists('deepCoadd',
                                          tract=tract,

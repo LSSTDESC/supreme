@@ -36,7 +36,7 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
 
         config = supreme.Configuration(os.path.join('configs/config_quick_tract_dc2.yaml'))
 
-        mapper = supreme.MultiMapper(self.butler, config, self.test_dir, ncores=1)
+        mapper = supreme.MultiMapper(self.butler, config, self.test_dir, ncores=2)
         mapper([tract], [filter_name])
 
         expected_dict = OrderedDict()

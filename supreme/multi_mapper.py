@@ -3,9 +3,9 @@ import numpy as np
 import healpy as hp
 import healsparse
 # import multiprocessing
-# from multiprocessing import Pool
+from multiprocessing import Pool
 
-from .patch_mapper import PatchMapper
+from .patch_mapper import PatchMapper, pool_initializer
 from .utils import approx_patch_polygon_area, op_str_to_code
 
 
@@ -59,7 +59,7 @@ class MultiMapper(object):
         nside_coverage_tract = self._compute_nside_coverage_tract(skymap[tracts[0]])
 
         # Get the patch_mapper ready
-        patch_mapper = PatchMapper(self.butler, self.config, self.outputpath)
+        patch_mapper = PatchMapper(self.outputpath)
 
         # For each tract/filter we map to run all the patches
         for tract in multi_dict:
@@ -67,15 +67,17 @@ class MultiMapper(object):
                 print('Running on tract %d / filter %s with %d cores.' %
                       (tract, f, self.ncores))
 
-                # values = zip([f]*len(multi_dict[tract][f]),
-                #              [tract]*len(multi_dict[tract][f]),
-                #              multi_dict[tract][f])
+                values = zip([tract]*len(multi_dict[tract][f]),
+                             [f]*len(multi_dict[tract][f]),
+                             multi_dict[tract][f],
+                             [consolidate]*len(multi_dict[tract][f]))
 
-                # pool = Pool(processes=self.ncores)
-                # results = pool.starmap(patch_mapper.run, values, chunksize=1)
-                # pool.close()
-                # pool.join()
-                results = [patch_mapper(tract, f, p, return_values_list=consolidate) for p in multi_dict[tract][f]]
+                pool = Pool(processes=self.ncores,
+                            initializer=pool_initializer,
+                            initargs=(self.butler, self.config))
+                results = pool.starmap(patch_mapper, values, chunksize=1)
+                pool.close()
+                pool.join()
 
                 if not consolidate:
                     continue
