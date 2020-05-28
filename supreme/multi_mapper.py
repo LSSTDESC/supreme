@@ -33,6 +33,9 @@ class MultiMapper(object):
         self.outputpath = outputpath
         self.ncores = ncores
 
+        if not os.path.isdir(outputpath):
+            raise RuntimeError("Outputpath %s does not exist." % (outputpath))
+
     def __call__(self, tracts, filters, patches=None, find_only=False, consolidate=True):
         """
         Compute the maps for a combination of tracts, filters, and patches.
@@ -132,6 +135,7 @@ class MultiMapper(object):
                                                         map_values_list[i][:, j])
 
                         fname = os.path.join(self.outputpath,
+                                             self.config.tract_relpath(tract),
                                              self.config.tract_map_filename(f,
                                                                             tract,
                                                                             map_type,

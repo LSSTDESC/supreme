@@ -33,7 +33,8 @@ class SupremeTestBase(unittest.TestCase):
            Filter name
         """
         for em in expected_dict:
-            map_name = os.path.join(self.test_dir, 'testing_%05d_%s_%s_%s.hs'
+            map_name = os.path.join(self.test_dir, '%d' % (tract), 'patches',
+                                    'testing_%05d_%s_%s_%s.hs'
                                     % (tract, patch, filter_name, em))
             self.assertTrue(os.path.isfile(map_name))
             m = healsparse.HealSparseMap.read(map_name)
@@ -104,7 +105,8 @@ class SupremeTestBase(unittest.TestCase):
         for em in expected_dict:
             if em == 'patch_inputs':
                 for patch in expected_dict[em][1:]:
-                    map_name = os.path.join(self.test_dir, 'testing_%05d_%s_%s_%s.hs'
+                    map_name = os.path.join(self.test_dir, '%d' % (tract), 'patches',
+                                            'testing_%05d_%s_%s_%s.hs'
                                             % (tract, patch, filter_name, em))
 
                     self.assertTrue(os.path.isfile(map_name))
@@ -114,7 +116,8 @@ class SupremeTestBase(unittest.TestCase):
 
                     self.assertGreater(valid_pixels.size, expected_dict[em][0])
             else:
-                map_name = os.path.join(self.test_dir, 'testing_%05d_%s_%s.hs'
+                map_name = os.path.join(self.test_dir, '%d' % (tract),
+                                        'testing_%05d_%s_%s.hs'
                                         % (tract, filter_name, em))
 
                 self.assertTrue(os.path.isfile(map_name))

@@ -40,6 +40,9 @@ class PatchMapper(object):
         """
         self.outputpath = outputpath
 
+        if not os.path.isdir(outputpath):
+            raise RuntimeError("Outputpath %s does not exist." % (outputpath))
+
     def __call__(self, tract, filter_name, patch_name, return_values_list=True):
         """
         Compute the map for a single patch.
@@ -77,6 +80,11 @@ class PatchMapper(object):
             else:
                 return None
 
+        # Create the path for tract/patches (if nessary)
+        os.makedirs(os.path.join(self.outputpath,
+                                 self.config.patch_relpath(tract)),
+                    exist_ok=True)
+
         skymap = self.butler.get('deepCoadd_skyMap')
         tract_info = skymap[tract]
 
@@ -93,6 +101,7 @@ class PatchMapper(object):
 
         # Check if we already have the persisted patch input map
         patch_input_filename = os.path.join(self.outputpath,
+                                            self.config.patch_relpath(tract),
                                             self.config.patch_input_filename(filter_name, tract, patch_name))
         if os.path.isfile(patch_input_filename):
             patch_input_map = healsparse.HealSparseMap.read(patch_input_filename)
@@ -248,6 +257,7 @@ class PatchMapper(object):
                 if not return_values_list:
                     # Here we want to save the patch map
                     fname = os.path.join(self.outputpath,
+                                         self.config.patch_relpath(tract),
                                          self.config.patch_map_filename(filter_name,
                                                                         tract,
                                                                         patch_name,
