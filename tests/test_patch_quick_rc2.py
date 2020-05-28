@@ -38,7 +38,7 @@ class PatchQuickRc2TestCase(supreme_test_base.SupremeTestBase):
         config = supreme.Configuration(os.path.join('configs/config_quick_rc2.yaml'))
 
         mapper = supreme.PatchMapper(self.butler, config, self.test_dir)
-        mapper.run(filter_name, tract, patch, return_values_list=False)
+        mapper(tract, filter_name, patch, return_values_list=False)
 
         # Check that everything is there
         expected_dict = OrderedDict()

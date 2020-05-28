@@ -31,7 +31,7 @@ class MultiRc2TestCase(supreme_test_base.SupremeTestBase):
         filter_name = 'HSC-I'
 
         mapper = supreme.MultiMapper(self.butler, None, './')
-        multi_dict = mapper.run([tract], [filter_name], patches=['2,2', '5,5'], find_only=True)
+        multi_dict = mapper([tract], [filter_name], patches=['2,2', '5,5'], find_only=True)
 
         # Should only return the one patch, '2,2'
         self.assertEqual(len(multi_dict), 1)
@@ -49,7 +49,7 @@ class MultiRc2TestCase(supreme_test_base.SupremeTestBase):
         filter_names = ['HSC-G', 'HSC-R', 'HSC-I', 'HSC-Z', 'HSC-Y']
 
         mapper = supreme.MultiMapper(self.butler, None, './')
-        multi_dict = mapper.run([tract], filter_names, find_only=True)
+        multi_dict = mapper([tract], filter_names, find_only=True)
 
         # Should only return the one filter, 'HSC-I', with 2 patches
         self.assertEqual(len(multi_dict), 1)

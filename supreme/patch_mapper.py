@@ -27,7 +27,7 @@ class PatchMapper(object):
 
         self.outputpath = outputpath
 
-    def run(self, filter_name, tract, patch_name, return_values_list=True):
+    def __call__(self, tract, filter_name, patch_name, return_values_list=True):
         """
         """
 

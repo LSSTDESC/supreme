@@ -37,4 +37,4 @@ if __name__ == '__main__':
         patches = None
 
     mapper = supreme.MultiMapper(butler, config, args.outputpath, ncores=args.cores)
-    mapper.run(tracts, filters, patches=patches)
+    mapper(tracts, filters, patches=patches)

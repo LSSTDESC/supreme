@@ -21,7 +21,7 @@ class MultiMapper(object):
         self.outputpath = outputpath
         self.ncores = ncores
 
-    def run(self, tracts, filters, patches=None, find_only=False):
+    def __call__(self, tracts, filters, patches=None, find_only=False):
         """
         """
         skymap = self.butler.get('deepCoadd_skyMap')
@@ -75,7 +75,7 @@ class MultiMapper(object):
                 # results = pool.starmap(patch_mapper.run, values, chunksize=1)
                 # pool.close()
                 # pool.join()
-                results = [patch_mapper.run(f, tract, p) for p in multi_dict[tract][f]]
+                results = [patch_mapper(tract, f, p) for p in multi_dict[tract][f]]
 
                 for i, map_type in enumerate(self.config.map_types):
                     for j, op_str in enumerate(self.config.map_types[map_type]):
