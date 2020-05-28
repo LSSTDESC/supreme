@@ -23,6 +23,8 @@ if __name__ == '__main__':
                         help='Name of patch(es), ^ delimited')
     parser.add_argument('-C', '--cores', action='store', type=int, required=True,
                         default=1, help='Number of cores to run on')
+    parser.add_argument('-P', '--individual_patches', action='store_true', required=False,
+                        help='Save individual patches instead of consolidating tracts')
 
     args = parser.parse_args()
 
@@ -37,4 +39,4 @@ if __name__ == '__main__':
         patches = None
 
     mapper = supreme.MultiMapper(butler, config, args.outputpath, ncores=args.cores)
-    mapper(tracts, filters, patches=patches)
+    mapper(tracts, filters, patches=patches, consolidate=not args.individual_patches)

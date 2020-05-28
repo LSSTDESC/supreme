@@ -37,8 +37,8 @@ class PatchSlowRc2TestCase(supreme_test_base.SupremeTestBase):
 
         config = supreme.Configuration(os.path.join('configs/config_slow_rc2.yaml'))
 
-        mapper = supreme.PatchMapper(self.butler, config, self.test_dir)
-        mapper(tract, filter_name, patch, return_values_list=False)
+        mapper = supreme.MultiMapper(self.butler, config, self.test_dir)
+        mapper([tract], [filter_name], [patch], consolidate=False)
 
         expected_dict = OrderedDict()
         expected_dict['patch_inputs'] = [2, 1]
