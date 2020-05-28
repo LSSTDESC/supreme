@@ -23,15 +23,46 @@ def pool_initializer(butler, config):
 
 class PatchMapper(object):
     """
-    Map a patch.
+    Map a single patch.  Should usually be invoked via MultiMapper.
     """
     def __init__(self, outputpath):
         """
+        Instantiate a PatchMapper
+
+        Parameters
+        ----------
+        outputpath : `str`
+           Base path for the output files.
+
+        Returns
+        -------
+        patchMapper : `supreme.PatchMapper`
         """
         self.outputpath = outputpath
 
     def __call__(self, tract, filter_name, patch_name, return_values_list=True):
         """
+        Compute the map for a single patch.
+
+        Parameters
+        ----------
+        tract : `int`
+           Tract number
+        filter_name : `str`
+           Filter name (dataId format)
+        patch_name : `str`
+           Patch name
+        return_values_list : `bool`, optional
+           Return the values as a list of arrays along with the map?  If False, the
+           patch map will be written to disk.
+
+        Returns
+        -------
+        patch_map : `healsparse.HealSparseMap`
+           Sparse "input" map encoding the coverage of the patch.
+        values : `list` of `numpy.ndarray`, optional
+           List of value arrays for each map/operation type specified in the config.
+           Returned if return_values_list is True.
         """
         # Copy in global butler for multiprocessing
         self.butler = _butler
@@ -233,6 +264,23 @@ class PatchMapper(object):
 
     def build_patch_input_map(self, tract_wcs, patch_info, ccds, nside_coverage_patch):
         """
+        Build the patch input map.
+
+        Parameters
+        ----------
+        tract_wcs : `lsst.afw.geom.SkyWcs`
+           WCS object for the tract
+        patch_info : `lsst.skymap.PatchInfo`
+           Patch info object
+        ccds : `lsst.afw.table.ExposureCatalog`
+           Catalog of ccd information
+        nside_coverage_patch : `int`
+           Healpix nside for the coverage map
+
+        Returns
+        -------
+        patch_input_map : `healsparse.HealSparseMap`
+           Healsparse map encoding input ccd information.
         """
         patch_input_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_patch,
                                                               nside_sparse=self.config.nside,
@@ -326,7 +374,21 @@ class PatchMapper(object):
 
     def _compute_skylevel(self, dataId, calexp):
         """
-        Compute the skylevel and skysigma
+        Compute the skylevel and skysigma for a calexp.
+
+        Parameters
+        ----------
+        dataId : `dict`
+           dataId dictionary for the individual calexp.
+        calexp : `lsst.afw.image.ExposureF`
+           Exposure to measure sky level.
+
+        Returns
+        -------
+        skylevel : `float`
+           Level of the sky associated with calexp
+        skysigma : `float`
+           Stddev of sky associated with calexp
         """
         bkg = self.butler.get('calexpBackground', dataId=dataId)
 
@@ -347,6 +409,19 @@ class PatchMapper(object):
 
     def _compute_calib_scale(self, ccd, xy):
         """
+        Compute calibration scaling value
+
+        Parameters
+        ----------
+        ccd : `lsst.afw.table.ExposureRecord`
+           Exposure metadata for given ccd
+        xy : `numpy.ndarray`
+           Nx2 array of x/y positions to compute calibration scale.
+
+        Returns
+        -------
+        calib_scale : `numpy.ndarray`
+           Length N array of calibration scale values
         """
         photoCalib = ccd.getPhotoCalib()
         bf = photoCalib.computeScaledCalibration()
@@ -361,6 +436,20 @@ class PatchMapper(object):
 
     def _compute_calexp_background(self, dataId, xy):
         """
+        Compute background value for a calexp at a list of positions.  Uses
+        calexpBackground and skyCorr (if available).
+
+        Parameters
+        ----------
+        dataId : `dict`
+           dataId dictionary for the individual calexp.
+        xy : `numpy.ndarray`
+           Nx2 array of x/y positions to compute calibration scale.
+
+        Returns
+        -------
+        values : `numpy.ndarray`
+           Length N array of background values.
         """
         bkg = self.butler.get('calexpBackground', dataId=dataId)
         bkgImage = bkg.getImage()
@@ -378,6 +467,18 @@ class PatchMapper(object):
 
     def _update_coadd_map_values(self, exposure, patch_info, valid_pixels, map_values_list):
         """
+        Modify the map values in-place for coadd quantities
+
+        Parameters
+        ----------
+        exposure : `lsst.afw.image.ExposureF`
+           Coadd exposure object
+        patch_info : `lsst.afw.table.ExposureRecord`
+           Patch information
+        valid_pixels : `numpy.ndarray`
+           Indices of valid pixels to compute values
+        map_values_list : `list`
+           List encoding all the map values to accumulate.
         """
         # Convert the coadd pixel grid to ra/dec
         coadd_xy, coadd_radec = bbox_to_radec_grid(exposure.getWcs(),
@@ -450,6 +551,19 @@ class PatchMapper(object):
 
     def _compute_nside_coverage_patch(self, patch_info, tract_info):
         """
+        Compute the optimal coverage nside for a patch.
+
+        Parameters
+        ----------
+        patch_info : `lsst.skymap.PatchInfo`
+           Information on the patch
+        tract_info : `lsst.skymap.ExplicitTractInfo`
+           Information on the tract
+
+        Returns
+        -------
+        nside_coverage_patch : `int`
+           Optimal coverage nside
         """
         # Compute the optimal coverage nside for the size of the patch
         # This does not need to match the tract coverage map!

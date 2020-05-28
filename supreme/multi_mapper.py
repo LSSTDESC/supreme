@@ -15,6 +15,18 @@ class MultiMapper(object):
     """
     def __init__(self, butler, config, outputpath, ncores=1):
         """
+        Instantiate a MultiMapper
+
+        Parameters
+        ----------
+        butler : `lsst.daf.persistence.Butler`
+           Data butler to retrieve exposures
+        config : `Configuration`
+           supreme configuration object
+        outputpath : `str`
+           Base path for output files
+        ncores : `int`
+           Number of cores to run with
         """
         self.butler = butler
         self.config = config
@@ -23,6 +35,25 @@ class MultiMapper(object):
 
     def __call__(self, tracts, filters, patches=None, find_only=False, consolidate=True):
         """
+        Compute the maps for a combination of tracts, filters, and patches.
+
+        Will look for all combinations of tracts/filters/patches to generate
+        maps.  If patches is None, will look for all possible patches for
+        each tract/filter combination.
+
+        Parameters
+        ----------
+        tracts : `list` of `int`
+           List of tracts to look for coadds to generate maps
+        filters : `list` of `str`
+           List of filters to look for coadds to generate maps
+        patches : `list` of `str`, optional
+           List of patches to look for coadds to generate maps
+        find_only : `bool`, optional
+           Only find the data to run on.  Used for testing.
+        consolidate : `bool`, optional
+           Consolidate all patches for a given tract/filter into
+           patch/filter maps for saving
         """
         skymap = self.butler.get('deepCoadd_skyMap')
 
@@ -109,6 +140,17 @@ class MultiMapper(object):
 
     def _compute_nside_coverage_tract(self, tract_info):
         """
+        Compute the optimal coverage nside for a tract.
+
+        Parameters
+        ----------
+        tract_info : `lsst.skymap.ExplicitTractInfo`
+           Information on the tract
+
+        Returns
+        -------
+        nside_coverage_patch : `int`
+           Optimal coverage nside
         """
         num_patches = tract_info.getNumPatches()
 
@@ -123,6 +165,18 @@ class MultiMapper(object):
         return nside_coverage_tract
 
     def _get_all_patch_names(self, tract_info):
+        """
+        Get all possible patch names for a tract.
+
+        Parameters
+        ----------
+        tract_info : `lsst.skymap.ExplicitTractInfo`
+           Information on the tract
+
+        Returns
+        -------
+        patch_names : `list` of `str`
+        """
         num_patches = tract_info.getNumPatches()
 
         patch_names = []
