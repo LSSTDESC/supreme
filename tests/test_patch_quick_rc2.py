@@ -22,22 +22,23 @@ class PatchQuickRc2TestCase(supreme_test_base.SupremeTestBase):
         except LookupError:
             raise unittest.SkipTest("supreme_testdata not setup")
 
+        cls.repo = os.path.join(cls.data_dir, 'supreme', 'testdata', 'RC2_test', 'rerun', 'coadd')
+        cls.butler = dafPersist.Butler(cls.repo)
+
     def test_patch_quick(self):
         """
         Test a single RC2 patch in quick mode
         """
-        repo = os.path.join(self.data_dir, 'supreme', 'testdata', 'RC2_test', 'rerun', 'coadd')
         tract = 9697
         filter_name = 'HSC-I'
         patch = '2,2'
 
         self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestPatchHsc-')
 
-        butler = dafPersist.Butler(repo)
         config = supreme.Configuration(os.path.join('configs/config_quick_rc2.yaml'))
 
-        mapper = supreme.PatchMapper(butler, config, self.test_dir)
-        mapper.run(filter_name, tract, patch, return_values_list=False)
+        mapper = supreme.MultiMapper(self.butler, config, self.test_dir)
+        mapper([tract], [filter_name], [patch], consolidate=False)
 
         # Check that everything is there
         expected_dict = OrderedDict()

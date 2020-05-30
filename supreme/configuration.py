@@ -1,4 +1,5 @@
 import yaml
+import os
 
 from .utils import op_code_to_str
 
@@ -15,6 +16,12 @@ class Configuration(object):
 
         with open(configfile) as f:
             self._config = yaml.load(f, Loader=yaml.SafeLoader)
+
+    def patch_relpath(self, tract):
+        return os.path.join(self.tract_relpath(tract), 'patches')
+
+    def tract_relpath(self, tract):
+        return '%d' % (tract)
 
     def patch_input_filename(self, filter_name, tract, patch_name):
         return '%s_%05d_%s_%s_patch_inputs.hs' % (self.outbase,

@@ -22,22 +22,23 @@ class PatchSlowDc2TestCase(supreme_test_base.SupremeTestBase):
         except LookupError:
             raise unittest.SkipTest("supreme_testdata not setup")
 
+        cls.repo = os.path.join(cls.data_dir, 'supreme', 'testdata', 'DC2_test', 'rerun', 'coadd')
+        cls.butler = dafPersist.Butler(cls.repo)
+
     def test_patch_slow(self):
         """
         Test a single DC2 patch in slow mode
         """
-        repo = os.path.join(self.data_dir, 'supreme', 'testdata', 'DC2_test', 'rerun', 'coadd')
         tract = 3828
         filter_name = 'i'
         patch = '2,2'
 
         self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestPatchImSim-')
 
-        butler = dafPersist.Butler(repo)
         config = supreme.Configuration(os.path.join('configs/config_slow_dc2.yaml'))
 
-        mapper = supreme.PatchMapper(butler, config, self.test_dir)
-        mapper.run(filter_name, tract, patch, return_values_list=False)
+        mapper = supreme.MultiMapper(self.butler, config, self.test_dir)
+        mapper([tract], [filter_name], [patch], consolidate=False)
 
         expected_dict = OrderedDict()
         expected_dict['patch_inputs'] = [2, 1]

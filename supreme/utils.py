@@ -14,6 +14,19 @@ OP_OR = 6
 
 
 def op_code_to_str(op_code):
+    """
+    Convert supreme op_code to string
+
+    Parameters
+    ----------
+    op_code : `int`
+       Operation code number
+
+    Returns
+    -------
+    op_str : `str`
+       String representation of op_code
+    """
     if op_code == OP_SUM:
         op_str = 'sum'
     elif op_code == OP_MEAN:
@@ -31,6 +44,19 @@ def op_code_to_str(op_code):
 
 
 def op_str_to_code(op_str):
+    """
+    Convert supreme operation string to code
+
+    Parameters
+    ----------
+    op_str : `str`
+       String representation of op_code
+
+    Returns
+    -------
+    op_code : `int`
+       Operation code number
+    """
     if op_str == 'sum':
         op_code = OP_SUM
     elif op_str == 'mean':
@@ -48,15 +74,39 @@ def op_str_to_code(op_str):
 
 
 def vertices_to_radec(vertices):
+    """
+    Convert vertices to ra/dec
+
+    Parameters
+    ----------
+    vertices : `list` of `lsst.sphgeom.UnitVector3d`
+       Vertices for bounding polygon
+
+    Returns
+    -------
+    radec : `numpy.ndarray`
+       Nx2 array of ra/dec positions associated with vertices
+    """
     lonlats = [lsst.sphgeom.LonLat(x) for x in vertices]
     radec = np.array([(x.getLon().asDegrees(), x.getLat().asDegrees()) for
                       x in lonlats])
-
     return radec
 
 
 def approx_patch_polygon_area(patch_info, wcs):
     """
+    Compute the approximate area covered by a patch
+
+    Parameters
+    ----------
+    patch_info : `lsst.skymap.PatchInfo`
+       Information on the patch
+    wcs : `lsst.afw.geom.SkyWcs`
+       WCS object
+
+    Returns
+    -------
+    area : `float`
     """
     vertices = patch_info.getInnerSkyPolygon(wcs).getVertices()
     radec = vertices_to_radec(vertices)
@@ -69,17 +119,22 @@ def approx_patch_polygon_area(patch_info, wcs):
     return area
 
 
-def radec_to_pixels(wcs, ra, dec):
-    pts = [lsst.geom.SpherePoint(r*lsst.geom.degrees, d*lsst.geom.degrees) for
-           r, d in zip(ra, dec)]
-    pixels = wcs.skyToPixel(pts)
-
-    xy = np.array([(pix.getX(), pix.getY()) for pix in pixels])
-
-    return pixels, xy
-
-
 def pixels_to_radec(wcs, pixels):
+    """
+    Convert pixels to ra/dec position
+
+    Parameters
+    ----------
+    wcs : `lsst.afw.geom.SkyWcs`
+       WCS object
+    pixels : `list` of `lsst.geom.Point2D`
+       List of pixels to convert
+
+    Returns
+    -------
+    radec : `numpy.ndarray`
+       Nx2 array of ra/dec positions associated with vertices
+    """
     sph_pts = wcs.pixelToSky(pixels)
 
     radec = np.array([(sph.getRa().asDegrees(), sph.getDec().asDegrees())
@@ -89,6 +144,21 @@ def pixels_to_radec(wcs, pixels):
 
 def xy_to_radec(wcs, x, y):
     """
+    Convert xy arrays to radec array
+
+    Parameters
+    ----------
+    wcs : `lsst.afw.geom.SkyWcs`
+       WCS object
+    x : `numpy.ndarray`
+       Float array of x positions
+    y : `numpy.ndarray`
+       Float array of y positions
+
+    Returns
+    -------
+    radec : `numpy.ndarray`
+       2xN array of ra/dec positions associated with input x/y
     """
     xy = np.vstack((x, y))
     rd = np.rad2deg(wcs.getTransform().getMapping().applyForward(xy))
@@ -98,6 +168,21 @@ def xy_to_radec(wcs, x, y):
 
 def radec_to_xy(wcs, ra, dec):
     """
+    Convert ra/dec arrays to xy array
+
+    Parameters
+    ----------
+    wcs : `lsst.afw.geom.SkyWcs`
+       WCS object
+    ra : `numpy.ndarray`
+       Float array of RA positions
+    dec : `numpy.ndarray`
+       Float array of Dec positions
+
+    Returns
+    -------
+    xy : `numpy.ndarray`
+       2xN array of x/y positions associated with input ra/dec
     """
     xy = wcs.getTransform().getMapping().applyInverse(np.deg2rad(np.vstack((ra, dec))))
     return xy.T
@@ -145,9 +230,23 @@ def bbox_to_radec_grid(wcs, bbox, tol=1e-7):
 
 
 def convert_mask_to_bbox_list(mask, plane_name):
+    """
+    Convert a mask plane to a list of bounding boxes.
+
+    Parameters
+    ----------
+    mask : `lsst.afw.image.MaskX`
+       Mask plane image
+    plane_name : `str`
+       Name of mask plane to create bounding boxes
+
+    Returns
+    -------
+    bboxes : `list` of `lsst.geom.Box2I`
+       List of bounding boxes describing the mask plane.
+    """
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(plane_name),
                                     afwDetection.Threshold.BITMASK)
     fp_list = afwDetection.FootprintSet(mask, thresh).getFootprints()
     defects = measAlg.Defects.fromFootprintList(fp_list)
-
     return [d.getBBox() for d in defects]
