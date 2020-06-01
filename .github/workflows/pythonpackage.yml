@@ -13,7 +13,14 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    container: lsstsqre/centos:7-stack-lsst_distrib-v19_0_0
+
+    strategy:
+      matrix:
+        stack:
+          - lsstsqre/centos:7-stack-lsst_distrib-v19_0_0
+          - lsstsqre/centos:7-stack-lsst_distrib-w_latest
+
+    container: ${{ matrix.stack }}
 
     steps:
     - name: Setup Environment
