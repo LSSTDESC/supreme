@@ -29,7 +29,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     butler = dafPersist.Butler(args.repo)
-    config = supreme.Configuration(args.configfile)
+    config = supreme.Configuration.load_yaml(args.configfile)
 
     tracts = [int(t) for t in args.tracts.split('^')]
     filters = [f for f in args.filters.split('^')]

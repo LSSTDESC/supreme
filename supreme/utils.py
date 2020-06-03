@@ -13,6 +13,16 @@ OP_MAX = 5
 OP_OR = 6
 
 
+valid_map_types = ['psf_size', 'psf_e1', 'psf_e2',
+                   'skylevel', 'skysigma', 'bgmean', 'background',
+                   'airmass',
+                   'nexp', 'exptime',
+                   'coadd_image', 'coadd_variance', 'coadd_mask']
+
+
+valid_op_strs = ['sum', 'mean', 'wmean', 'min', 'max', 'or']
+
+
 def op_code_to_str(op_code):
     """
     Convert supreme op_code to string
