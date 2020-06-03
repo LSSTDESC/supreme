@@ -14,18 +14,16 @@ from .utils import convert_mask_to_bbox_list, bbox_to_radec_grid
 from .psf import get_approx_psf_size_and_shape
 
 
-def pool_initializer(butler, config):
+def pool_initializer(butler):
     global _butler
-    global _config
     _butler = butler
-    _config = config
 
 
 class PatchMapper(object):
     """
     Map a single patch.  Should usually be invoked via MultiMapper.
     """
-    def __init__(self, outputpath):
+    def __init__(self, outputpath, config):
         """
         Instantiate a PatchMapper
 
@@ -33,12 +31,15 @@ class PatchMapper(object):
         ----------
         outputpath : `str`
            Base path for the output files.
+        config : `Configuration`
+           supreme configuration object
 
         Returns
         -------
         patchMapper : `supreme.PatchMapper`
         """
         self.outputpath = outputpath
+        self.config = config
 
         if not os.path.isdir(outputpath):
             raise RuntimeError("Outputpath %s does not exist." % (outputpath))
@@ -69,7 +70,6 @@ class PatchMapper(object):
         """
         # Copy in global butler for multiprocessing
         self.butler = _butler
-        self.config = _config
 
         if not self.butler.datasetExists('deepCoadd',
                                          tract=tract,

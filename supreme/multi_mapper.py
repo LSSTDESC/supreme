@@ -93,7 +93,7 @@ class MultiMapper(object):
         nside_coverage_tract = self._compute_nside_coverage_tract(skymap[tracts[0]])
 
         # Get the patch_mapper ready
-        patch_mapper = PatchMapper(self.outputpath)
+        patch_mapper = PatchMapper(self.outputpath, self.config)
 
         # For each tract/filter we map to run all the patches
         for tract in multi_dict:
@@ -108,7 +108,7 @@ class MultiMapper(object):
 
                 pool = Pool(processes=self.ncores,
                             initializer=pool_initializer,
-                            initargs=(self.butler, self.config))
+                            initargs=(self.butler, ))
                 results = pool.starmap(patch_mapper, values, chunksize=1)
                 pool.close()
                 pool.join()
