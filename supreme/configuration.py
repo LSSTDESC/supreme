@@ -1,21 +1,71 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import List
 import yaml
 import os
+import numpy as np
 
-from .utils import op_code_to_str
+from .utils import op_code_to_str, valid_map_types, valid_op_strs
 
 
+def _default_bad_mask_planes():
+    return ['BAD', 'NO_DATA', 'SAT', 'SUSPECT', 'ARGH']
+
+
+@dataclass
 class Configuration(object):
     """
-    This is a stub that just loads a yaml and turns itself into a dict-like object.
-
-    In the future, this will add more features on checking fields, etc.
+    Supreme configuration object.
     """
-    def __init__(self, configfile):
-        """
-        """
+    # Mandatory fields
+    outbase: str
+    map_types: dict
 
+    # Optional fields
+    nside: int = 32768
+    use_calexp_mask: bool = False
+    bad_mask_planes: List[str] = field(default_factory=_default_bad_mask_planes)
+    detector_id_name: str = 'detector'
+    visit_id_name: str = 'visit'
+
+    def __post_init__(self):
+        self._validate()
+
+    def _validate(self):
+        # Check the nside
+        if self.nside <= 0:
+            raise RuntimeError("nside %d must be positive power of 2" % (self.nside))
+        log2nside = np.log2(self.nside)
+        if log2nside != int(log2nside) or self.nside <= 0:
+            raise RuntimeError("nside %d must be positive power of 2" % (self.nside))
+        # Check the map types and operations
+        for map_type in self.map_types:
+            if map_type not in valid_map_types:
+                raise RuntimeError("map_type %s is not supported." % (map_type))
+            for op_str in self.map_types[map_type]:
+                if op_str not in valid_op_strs:
+                    raise RuntimeError("Operation %s not supported for map_type %s" %
+                                       (op_str, map_type))
+
+    @classmethod
+    def load_yaml(cls, configfile):
+        """
+        Load a yaml file into the config
+
+        Parameters
+        ----------
+        configfile : `str`
+           Filename of yaml file
+
+        Returns
+        -------
+        config : `Configuration`
+        """
         with open(configfile) as f:
-            self._config = yaml.load(f, Loader=yaml.SafeLoader)
+            _config = yaml.load(f, Loader=yaml.SafeLoader)
+
+        return cls(**_config)
 
     def patch_relpath(self, tract):
         return os.path.join(self.tract_relpath(tract), 'patches')
@@ -41,51 +91,3 @@ class Configuration(object):
                                         filter_name,
                                         map_type,
                                         op_code_to_str(operation))
-
-    def __getattr__(self, attr):
-        try:
-            return self._config[attr]
-        except KeyError:
-            return object.__getattribute__(self, attr)
-
-    def __setitem__(self, key, item):
-        self._config.__setitem__(key, item)
-
-    def __getitem__(self, key, item):
-        return self._config.__getitem__(key, item)
-
-    def __repr__(self):
-        return self._config.__repr__()
-
-    def __len__(self):
-        return self._config.__len__()
-
-    def __delitem__(self, key):
-        self._config.__delitem__(key)
-
-    def update(self, *args, **kwargs):
-        return self._config.update(*args, **kwargs)
-
-    def keys(self):
-        return self._config.keys()
-
-    def values(self):
-        return self._config.values()
-
-    def items(self):
-        return self._config.items()
-
-    def pop(self, key):
-        return self._config.pop(key)
-
-    def __cmp__(self, dict_):
-        return self._config.__cmp__(dict_)
-
-    def __contains__(self, item):
-        return self._config.__contains__(item)
-
-    def __iter__(self):
-        return self._config.__iter__()
-
-    def __unicode__(self):
-        return self._config.__unicode__()

@@ -35,7 +35,7 @@ class PatchQuickDc2TestCase(supreme_test_base.SupremeTestBase):
 
         self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestPatchImSim-')
 
-        config = supreme.Configuration(os.path.join('configs/config_quick_dc2.yaml'))
+        config = supreme.Configuration.load_yaml(os.path.join('configs/config_quick_dc2.yaml'))
 
         mapper = supreme.MultiMapper(self.butler, config, self.test_dir)
         mapper([tract], [filter_name], [patch], consolidate=False)
