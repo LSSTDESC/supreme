@@ -5,6 +5,7 @@ import healsparse
 import esutil
 
 import lsst.geom
+import lsst.afw.geom as afwGeom
 import lsst.afw.math as afwMath
 
 from .utils import vertices_to_radec, pixels_to_radec, radec_to_xy
@@ -304,8 +305,10 @@ class PatchMapper(object):
             metadata['B%04dWT' % (bit)] = ccd['weight']
 
             wcs = ccd.getWcs()
-            ccd_poly = ccd.getValidPolygon().convexHull()
-            ccd_poly_radec = pixels_to_radec(wcs, ccd_poly.getVertices())
+            ccd_poly = ccd.getValidPolygon()
+            if ccd_poly is None:
+                ccd_poly = afwGeom.Polygon(lsst.geom.Box2D(ccd.getBBox()))
+            ccd_poly_radec = pixels_to_radec(wcs, ccd_poly.convexHull().getVertices())
 
             # Use polygons for all of these
             poly = healsparse.Polygon(ra=ccd_poly_radec[: -1, 0],
