@@ -1,4 +1,5 @@
 import os
+import multiprocessing
 import numpy as np
 import healpy as hp
 import healsparse
@@ -7,6 +8,7 @@ import esutil
 import lsst.geom
 import lsst.afw.geom as afwGeom
 import lsst.afw.math as afwMath
+import lsst.daf.persistence as dafPersist
 
 from .utils import vertices_to_radec, pixels_to_radec, radec_to_xy
 from .utils import OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX, OP_OR
@@ -14,10 +16,21 @@ from .utils import approx_patch_polygon_area, op_str_to_code
 from .utils import convert_mask_to_bbox_list, bbox_to_radec_grid
 from .psf import get_approx_psf_size_and_shape
 
+global _butler_dict
 
-def pool_initializer(butler):
-    global _butler
-    _butler = butler
+
+_butler_dict = {}
+
+
+def pool_initializer(butler, worker_index):
+    proc = multiprocessing.Process()
+    this_core = proc._identity[0]
+
+    if this_core == worker_index:
+        _butler_dict[this_core] = butler
+    else:
+        repo = butler._repos._inputs[0].repoArgs.root
+        _butler_dict[this_core] = dafPersist.Butler(repo)
 
 
 class PatchMapper(object):
@@ -70,12 +83,14 @@ class PatchMapper(object):
            Returned if return_values_list is True.
         """
         # Copy in global butler for multiprocessing
-        self.butler = _butler
+        this_core = multiprocessing.current_process()._identity[0]
 
-        if not self.butler.datasetExists('deepCoadd',
-                                         tract=tract,
-                                         patch=patch_name,
-                                         filter=filter_name):
+        butler = _butler_dict[this_core]
+
+        if not butler.datasetExists('deepCoadd',
+                                    tract=tract,
+                                    patch=patch_name,
+                                    filter=filter_name):
             if return_values_list:
                 return None, None
             else:
@@ -86,7 +101,7 @@ class PatchMapper(object):
                                  self.config.patch_relpath(tract)),
                     exist_ok=True)
 
-        skymap = self.butler.get('deepCoadd_skyMap')
+        skymap = butler.get('deepCoadd_skyMap')
         tract_info = skymap[tract]
 
         patch_indices = [int(x) for x in patch_name.split(',')]
@@ -94,7 +109,7 @@ class PatchMapper(object):
 
         nside_coverage_patch = self._compute_nside_coverage_patch(patch_info, tract_info)
 
-        exposure = self.butler.get('deepCoadd', tract=tract, patch=patch_name, filter=filter_name)
+        exposure = butler.get('deepCoadd', tract=tract, patch=patch_name, filter=filter_name)
         info = exposure.getInfo()
         inputs = info.getCoaddInputs()
 
@@ -107,7 +122,8 @@ class PatchMapper(object):
         if os.path.isfile(patch_input_filename):
             patch_input_map = healsparse.HealSparseMap.read(patch_input_filename)
         else:
-            patch_input_map = self.build_patch_input_map(tract_info.getWcs(),
+            patch_input_map = self.build_patch_input_map(butler,
+                                                         tract_info.getWcs(),
                                                          patch_info,
                                                          inputs.ccds,
                                                          nside_coverage_patch)
@@ -190,7 +206,7 @@ class PatchMapper(object):
                 else:
                     # We must load the metadata
                     # This might be redundant, but useful during testing/development
-                    calexp_metadata = self.butler.get('calexp_md', dataId=dataId)
+                    calexp_metadata = butler.get('calexp_md', dataId=dataId)
                     skylevel = calexp_metadata['SKYLEVEL']
                     skysigma = calexp_metadata['SKYSIGMA']
                     bgmean = calexp_metadata['BGMEAN']
@@ -219,7 +235,7 @@ class PatchMapper(object):
                 elif map_type == 'bgmean':
                     values = bgmean*calib_scale
                 elif map_type == 'background':
-                    values = self._compute_calexp_background(dataId, xy)
+                    values = self._compute_calexp_background(butler, dataId, xy)
                     values *= calib_scale
                 elif map_type.startswith('coadd'):
                     continue
@@ -273,12 +289,14 @@ class PatchMapper(object):
         if return_values_list:
             return patch_input_map, map_values_list
 
-    def build_patch_input_map(self, tract_wcs, patch_info, ccds, nside_coverage_patch):
+    def build_patch_input_map(self, butler, tract_wcs, patch_info, ccds, nside_coverage_patch):
         """
         Build the patch input map.
 
         Parameters
         ----------
+        butler : `lsst.daf.persistence.Butler`
+           gen2 butler
         tract_wcs : `lsst.afw.geom.SkyWcs`
            WCS object for the tract
         patch_info : `lsst.skymap.PatchInfo`
@@ -320,7 +338,7 @@ class PatchMapper(object):
                       self.config.visit_id_name: int(ccd['visit'])}
 
             if self.config.use_calexp_mask:
-                calexp = self.butler.get('calexp', dataId=dataId)
+                calexp = butler.get('calexp', dataId=dataId)
                 calexp_metadata = calexp.getMetadata()
 
                 mask = calexp.getMask()
@@ -342,12 +360,12 @@ class PatchMapper(object):
 
                 if 'SKYLEVEL' not in calexp_metadata:
                     # We must recompute skylevel, skysigma
-                    skylevel, skysigma = self._compute_skylevel(dataId, calexp)
+                    skylevel, skysigma = self._compute_skylevel(butler, dataId, calexp)
                 else:
                     skylevel = calexp_metadata['SKYLEVEL']
                     skysigma = calexp_metadata['SKYSIGMA']
             else:
-                calexp_metadata = self.butler.get('calexp_md', dataId=dataId)
+                calexp_metadata = butler.get('calexp_md', dataId=dataId)
                 if 'SKYLEVEL' not in calexp_metadata:
                     # We want to log this
                     skylevel = 0.0
@@ -385,12 +403,14 @@ class PatchMapper(object):
 
         return patch_input_map
 
-    def _compute_skylevel(self, dataId, calexp):
+    def _compute_skylevel(self, butler, dataId, calexp):
         """
         Compute the skylevel and skysigma for a calexp.
 
         Parameters
         ----------
+        butler : `lsst.daf.persistence.Butler`
+           gen2 butler
         dataId : `dict`
            dataId dictionary for the individual calexp.
         calexp : `lsst.afw.image.ExposureF`
@@ -403,7 +423,7 @@ class PatchMapper(object):
         skysigma : `float`
            Stddev of sky associated with calexp
         """
-        bkg = self.butler.get('calexpBackground', dataId=dataId)
+        bkg = butler.get('calexpBackground', dataId=dataId)
 
         statsControl = afwMath.StatisticsControl(3.0, 3)
         maskVal = calexp.getMaskedImage().getMask().getPlaneBitMask(["BAD",
@@ -447,13 +467,15 @@ class PatchMapper(object):
 
         return calib_scale
 
-    def _compute_calexp_background(self, dataId, xy):
+    def _compute_calexp_background(self, butler, dataId, xy):
         """
         Compute background value for a calexp at a list of positions.  Uses
         calexpBackground and skyCorr (if available).
 
         Parameters
         ----------
+        butler : `lsst.daf.persistence.Butler`
+           gen2 butler
         dataId : `dict`
            dataId dictionary for the individual calexp.
         xy : `numpy.ndarray`
@@ -464,10 +486,10 @@ class PatchMapper(object):
         values : `numpy.ndarray`
            Length N array of background values.
         """
-        bkg = self.butler.get('calexpBackground', dataId=dataId)
+        bkg = butler.get('calexpBackground', dataId=dataId)
         bkgImage = bkg.getImage()
-        if self.butler.datasetExists('skyCorr', dataId=dataId):
-            skyCorr = self.butler.get('skyCorr', dataId=dataId)
+        if butler.datasetExists('skyCorr', dataId=dataId):
+            skyCorr = butler.get('skyCorr', dataId=dataId)
             bkgImage += skyCorr.getImage()
 
         # Take the background at the given pixel.  Since this

@@ -2,7 +2,7 @@ import os
 import numpy as np
 import healpy as hp
 import healsparse
-# import multiprocessing
+import multiprocessing
 from multiprocessing import Pool
 
 from .patch_mapper import PatchMapper, pool_initializer
@@ -106,9 +106,13 @@ class MultiMapper(object):
                              multi_dict[tract][f],
                              [consolidate]*len(multi_dict[tract][f]))
 
+                proc = multiprocessing.Process()
+                worker_index = proc._identity[0] + 1
+                proc = None
+
                 pool = Pool(processes=self.ncores,
                             initializer=pool_initializer,
-                            initargs=(self.butler, ))
+                            initargs=(self.butler, worker_index))
                 results = pool.starmap(patch_mapper, values, chunksize=1)
                 pool.close()
                 pool.join()
