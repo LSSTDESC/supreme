@@ -11,7 +11,7 @@ import lsst.afw.math as afwMath
 import lsst.daf.persistence as dafPersist
 
 from .utils import vertices_to_radec, pixels_to_radec, radec_to_xy
-from .utils import OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX, OP_OR
+from .utils import OP_NONE, OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX, OP_OR
 from .utils import approx_patch_polygon_area, op_str_to_code
 from .utils import convert_mask_to_bbox_list, bbox_to_radec_grid
 from .psf import get_approx_psf_size_and_shape
@@ -58,7 +58,8 @@ class PatchMapper(object):
         if not os.path.isdir(outputpath):
             raise RuntimeError("Outputpath %s does not exist." % (outputpath))
 
-    def __call__(self, tract, filter_name, patch_name, return_values_list=True):
+    def __call__(self, tract, filter_name, patch_name, tract_mode=True,
+                 map_run=None, clobber=False):
         """
         Compute the map for a single patch.
 
@@ -70,9 +71,15 @@ class PatchMapper(object):
            Filter name (dataId format)
         patch_name : `str`
            Patch name
-        return_values_list : `bool`, optional
-           Return the values as a list of arrays along with the map?  If False, the
-           patch map will be written to disk.
+        tract_mode : `bool`, optional
+           If being run in tract_mode, then the values will be returned as a list
+           of arrays.  If False, the patch map will be written to disk.
+        map_run : `dict` or None, optional
+           Dict matching config.map_types, with a True/False flag if a map
+           is to be run (for use when a map already exists).  Default is None,
+           which means run all.
+        clobber : `bool`, optional
+           Clobber any existing files.
 
         Returns
         -------
@@ -91,7 +98,7 @@ class PatchMapper(object):
                                     tract=tract,
                                     patch=patch_name,
                                     filter=filter_name):
-            if return_values_list:
+            if tract_mode:
                 return None, None
             else:
                 return None
@@ -119,7 +126,7 @@ class PatchMapper(object):
         patch_input_filename = os.path.join(self.outputpath,
                                             self.config.patch_relpath(tract),
                                             self.config.patch_input_filename(filter_name, tract, patch_name))
-        if os.path.isfile(patch_input_filename):
+        if os.path.isfile(patch_input_filename) and not clobber:
             patch_input_map = healsparse.HealSparseMap.read(patch_input_filename)
         else:
             patch_input_map = self.build_patch_input_map(butler,
@@ -127,7 +134,7 @@ class PatchMapper(object):
                                                          patch_info,
                                                          inputs.ccds,
                                                          nside_coverage_patch)
-            patch_input_map.write(patch_input_filename)
+            patch_input_map.write(patch_input_filename, clobber=clobber)
 
         # Now we build maps
         valid_pixels, ra, dec = patch_input_map.valid_pixels_pos(lonlat=True, return_pixels=True)
@@ -139,15 +146,17 @@ class PatchMapper(object):
         map_values_list = []
         self.map_operation_list = []
         for map_type in self.config.map_types.keys():
-            if map_type == 'psf_size' or map_type == 'psf_e1' or map_type == 'psf_e2':
-                has_psf_quantity = True
-            if map_type == 'skylevel' or map_type == 'skysigma' or map_type == 'bgmean':
-                has_metadata_quantity = True
-            if map_type == 'skylevel' or map_type == 'skysigma' or \
-                    map_type == 'bgmean' or map_type == 'background':
-                has_calibrated_quantity = True
-            if map_type.startswith('coadd'):
-                has_coadd_quantity = True
+            # Check if we need to run _any_ operations
+            if map_run is None or np.any(map_run[map_type]):
+                if map_type == 'psf_size' or map_type == 'psf_e1' or map_type == 'psf_e2':
+                    has_psf_quantity = True
+                if map_type == 'skylevel' or map_type == 'skysigma' or map_type == 'bgmean':
+                    has_metadata_quantity = True
+                if map_type == 'skylevel' or map_type == 'skysigma' or \
+                        map_type == 'bgmean' or map_type == 'background':
+                    has_calibrated_quantity = True
+                if map_type.startswith('coadd'):
+                    has_coadd_quantity = True
 
             # Specify maps that are integers not floats
             if map_type in ['nexp', 'coadd_mask']:
@@ -160,6 +169,8 @@ class PatchMapper(object):
             op_list = []
             for j, operation in enumerate(self.config.map_types[map_type]):
                 op_code = op_str_to_code(operation)
+                if map_run is not None and not map_run[map_type][j]:
+                    op_code = OP_NONE
                 op_list.append(op_code)
 
                 if op_code == OP_MIN or op_code == OP_MAX:
@@ -216,7 +227,9 @@ class PatchMapper(object):
                 calib_scale = self._compute_calib_scale(ccd, xy)
 
             for i, map_type in enumerate(self.config.map_types.keys()):
-                if map_type == 'psf_size':
+                if map_run is not None and not np.any(map_run[map_type]):
+                    values = 0
+                elif map_type == 'psf_size':
                     values = psf_size
                 elif map_type == 'psf_e1':
                     values = psf_e1
@@ -271,7 +284,7 @@ class PatchMapper(object):
                     elif op == OP_WMEAN:
                         map_values_list[i][:, j] /= weights
 
-                if not return_values_list:
+                if not tract_mode:
                     # Here we want to save the patch map
                     fname = os.path.join(self.outputpath,
                                          self.config.patch_relpath(tract),
@@ -284,9 +297,11 @@ class PatchMapper(object):
                                                                    nside_sparse=self.config.nside,
                                                                    dtype=map_values_list[i][:, j].dtype)
                     temp_map.update_values_pix(valid_pixels, map_values_list[i][:, j])
-                    temp_map.write(fname)
+                    if not os.path.isfile(fname) or clobber:
+                        # Only write if clobber is True or if file does not exist
+                        temp_map.write(fname, clobber=clobber)
 
-        if return_values_list:
+        if tract_mode:
             return patch_input_map, map_values_list
 
     def build_patch_input_map(self, butler, tract_wcs, patch_info, ccds, nside_coverage_patch):

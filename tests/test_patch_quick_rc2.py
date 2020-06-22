@@ -7,6 +7,7 @@ import supreme
 
 import lsst.daf.persistence as dafPersist
 import lsst.utils
+import lsst.obs.base
 
 import supreme_test_base
 
@@ -21,6 +22,8 @@ class PatchQuickRc2TestCase(supreme_test_base.SupremeTestBase):
             cls.data_dir = lsst.utils.getPackageDir('supreme_testdata')
         except LookupError:
             raise unittest.SkipTest("supreme_testdata not setup")
+
+        lsst.obs.base.FilterDefinitionCollection.reset()
 
         cls.repo = os.path.join(cls.data_dir, 'supreme', 'testdata', 'RC2_test', 'rerun', 'coadd')
         cls.butler = dafPersist.Butler(cls.repo)
@@ -59,7 +62,17 @@ class PatchQuickRc2TestCase(supreme_test_base.SupremeTestBase):
         expected_dict['coadd_variance_mean'] = [0.005, 0.03, 'float64']
         expected_dict['coadd_mask_or'] = [-1, 54000, 'int32']
 
-        self.check_expected_maps_patch(expected_dict, tract, patch, filter_name)
+        mod_times1 = self.check_expected_maps_patch(expected_dict, tract, patch, filter_name)
+
+        # Run a second run, clobber=True
+        mapper([tract], [filter_name], [patch], consolidate=False, clobber=True)
+        mod_times2 = self.check_expected_maps_patch(expected_dict, tract, patch, filter_name)
+        self.check_mod_times(mod_times1, mod_times2, 'greater')
+
+        # And a third run, clobber=False
+        mapper([tract], [filter_name], [patch], consolidate=False, clobber=False)
+        mod_times3 = self.check_expected_maps_patch(expected_dict, tract, patch, filter_name)
+        self.check_mod_times(mod_times2, mod_times3, 'equal')
 
 
 if __name__ == '__main__':

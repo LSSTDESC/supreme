@@ -32,11 +32,13 @@ class SupremeTestBase(unittest.TestCase):
         filter_name : `str`
            Filter name
         """
+        mod_times = []
         for em in expected_dict:
             map_name = os.path.join(self.test_dir, '%d' % (tract), 'patches',
                                     'testing_%05d_%s_%s_%s.hs'
                                     % (tract, patch, filter_name, em))
             self.assertTrue(os.path.isfile(map_name))
+            mod_times.append(os.path.getmtime(map_name))
             m = healsparse.HealSparseMap.read(map_name)
 
             valid_pixels = m.valid_pixels
@@ -88,6 +90,8 @@ class SupremeTestBase(unittest.TestCase):
                 self.assertLess(np.max(m.get_values_pix(valid_pixels)),
                                 expected_dict[em][1])
 
+        return mod_times
+
     def check_expected_maps_tract(self, expected_dict, tract, filter_name):
         """
         Check for expected maps, ranges, types for a tract.
@@ -102,6 +106,7 @@ class SupremeTestBase(unittest.TestCase):
         filter_name : `str`
            Filter name
         """
+        mod_times = []
         for em in expected_dict:
             if em == 'patch_inputs':
                 for patch in expected_dict[em][1:]:
@@ -121,6 +126,7 @@ class SupremeTestBase(unittest.TestCase):
                                         % (tract, filter_name, em))
 
                 self.assertTrue(os.path.isfile(map_name))
+                mod_times.append(os.path.getmtime(map_name))
                 m = healsparse.HealSparseMap.read(map_name)
 
                 valid_pixels = m.valid_pixels
@@ -131,3 +137,24 @@ class SupremeTestBase(unittest.TestCase):
                                    expected_dict[em][0])
                 self.assertLess(np.max(m.get_values_pix(valid_pixels)),
                                 expected_dict[em][1])
+
+        return mod_times
+
+    def check_mod_times(self, mod_times1, mod_times2, mode):
+        """
+        Compare modification times.
+
+        Parameters
+        ----------
+        mod_times1 : `list`
+           First modification times
+        mod_times2 : `list`
+           Second modification times
+        mode : `str`
+           'equal' will check times are equal.  'greater` will check
+           that mod_times2 > mod_times1
+        """
+        if mode == 'equal':
+            testing.assert_array_almost_equal(mod_times1, mod_times2)
+        elif mode == 'greater':
+            self.assertTrue(np.all(np.array(mod_times2) > np.array(mod_times1)))
