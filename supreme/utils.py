@@ -5,6 +5,7 @@ import lsst.afw.detection as afwDetection
 import lsst.meas.algorithms as measAlg
 
 
+OP_NONE = 0
 OP_SUM = 1
 OP_MEAN = 2
 OP_WMEAN = 3

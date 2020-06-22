@@ -36,7 +36,8 @@ class MultiMapper(object):
         if not os.path.isdir(outputpath):
             raise RuntimeError("Outputpath %s does not exist." % (outputpath))
 
-    def __call__(self, tracts, filters, patches=None, find_only=False, consolidate=True):
+    def __call__(self, tracts, filters, patches=None, find_only=False, consolidate=True,
+                 clobber=False):
         """
         Compute the maps for a combination of tracts, filters, and patches.
 
@@ -57,6 +58,8 @@ class MultiMapper(object):
         consolidate : `bool`, optional
            Consolidate all patches for a given tract/filter into
            patch/filter maps for saving
+        clobber : `bool`, optional
+           Clobber any existing files
         """
         skymap = self.butler.get('deepCoadd_skyMap')
 
@@ -98,13 +101,38 @@ class MultiMapper(object):
         # For each tract/filter we map to run all the patches
         for tract in multi_dict:
             for f in multi_dict[tract]:
+
+                # Check for existing files, if clobber is False
+                map_run = None
+                if not clobber:
+                    # This logic here only works for tract maps, and not for patch
+                    # maps.  To support what I think is an edge case (where it
+                    # would speed up skipping in some instances) is not worth it.
+                    map_run = {}
+                    for i, map_type in enumerate(self.config.map_types):
+                        map_run[map_type] = []
+                        for j, op_str in enumerate(self.config.map_types[map_type]):
+                            op_code = op_str_to_code(op_str)
+                            fname = os.path.join(self.outputpath,
+                                                 self.config.tract_relpath(tract),
+                                                 self.config.tract_map_filename(f,
+                                                                                tract,
+                                                                                map_type,
+                                                                                op_code))
+                            map_run[map_type].append(not os.path.isfile(fname))
+                            if not map_run[map_type][-1]:
+                                print('Found %s; skipping render as clobber is False' %
+                                      (fname))
+
                 print('Running on tract %d / filter %s with %d cores.' %
                       (tract, f, self.ncores))
 
                 values = zip([tract]*len(multi_dict[tract][f]),
                              [f]*len(multi_dict[tract][f]),
                              multi_dict[tract][f],
-                             [consolidate]*len(multi_dict[tract][f]))
+                             [consolidate]*len(multi_dict[tract][f]),
+                             [map_run]*len(multi_dict[tract][f]),
+                             [clobber]*len(multi_dict[tract][f]))
 
                 proc = multiprocessing.Process()
                 worker_index = proc._identity[0] + 1
@@ -122,6 +150,9 @@ class MultiMapper(object):
 
                 for i, map_type in enumerate(self.config.map_types):
                     for j, op_str in enumerate(self.config.map_types[map_type]):
+                        if map_run is not None:
+                            if not map_run[map_type][j]:
+                                continue
                         op_code = op_str_to_code(op_str)
                         patch_input_map = results[0][0]
                         map_values_list = results[0][1]
@@ -144,7 +175,7 @@ class MultiMapper(object):
                                                                             tract,
                                                                             map_type,
                                                                             op_code))
-                        tract_map.write(fname)
+                        tract_map.write(fname, clobber=clobber)
 
     def _compute_nside_coverage_tract(self, tract_info):
         """

@@ -61,5 +61,4 @@ jobs:
       shell: bash -l {0}
       run: |
         cd tests
-        pytest test_*rc2.py
-        pytest test_*dc2.py
+        pytest

@@ -7,6 +7,7 @@ import supreme
 
 import lsst.daf.persistence as dafPersist
 import lsst.utils
+import lsst.obs.base
 
 import supreme_test_base
 
@@ -21,6 +22,8 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
             cls.data_dir = lsst.utils.getPackageDir('supreme_testdata')
         except LookupError:
             raise unittest.SkipTest("supreme_testdata not setup")
+
+        lsst.obs.base.FilterDefinitionCollection.reset()
 
         cls.repo = os.path.join(cls.data_dir, 'supreme', 'testdata', 'DC2_test', 'rerun', 'coadd')
         cls.butler = dafPersist.Butler(cls.repo)

@@ -7,6 +7,7 @@ import supreme
 
 import lsst.daf.persistence as dafPersist
 import lsst.utils
+import lsst.obs.base
 
 import supreme_test_base
 
@@ -21,6 +22,8 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
             cls.data_dir = lsst.utils.getPackageDir('supreme_testdata')
         except LookupError:
             raise unittest.SkipTest("supreme_testdata not setup")
+
+        lsst.obs.base.FilterDefinitionCollection.reset()
 
         cls.repo = os.path.join(cls.data_dir, 'supreme', 'testdata', 'RC2_test', 'rerun', 'coadd')
         cls.butler = dafPersist.Butler(cls.repo)
@@ -43,7 +46,17 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
         expected_dict['patch_inputs'] = [4500, '2,1', '2,2']
         expected_dict['exptime_sum'] = [199.0, 401.0, 'float64']
 
-        self.check_expected_maps_tract(expected_dict, tract, filter_name)
+        mod_times1 = self.check_expected_maps_tract(expected_dict, tract, filter_name)
+
+        # Run a second run, clobber=True
+        mapper([tract], [filter_name], clobber=True)
+        mod_times2 = self.check_expected_maps_tract(expected_dict, tract, filter_name)
+        self.check_mod_times(mod_times1, mod_times2, 'greater')
+
+        # And a third run, clobber=False
+        mapper([tract], [filter_name], clobber=False)
+        mod_times3 = self.check_expected_maps_tract(expected_dict, tract, filter_name)
+        self.check_mod_times(mod_times2, mod_times3, 'equal')
 
     def test_tract_quick_nofilter(self):
         """
