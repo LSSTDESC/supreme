@@ -1,0 +1,7 @@
+# FAKE CATALOG
+# TRACT: 99999
+# PATCH: 9,9
+# FILTER: i
+wcs; fk5
+circle(50.0, 25.0, 0.1d) # ID: 0, mag: 0.0
+box(50.0, 25.0, 0.05d, 0.3d) # ID: 1, mag: 0.0

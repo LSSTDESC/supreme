@@ -91,3 +91,37 @@ class Configuration(object):
                                         filter_name,
                                         map_type,
                                         op_code_to_str(operation))
+
+
+@dataclass
+class RegionConfiguration(object):
+    """
+    Supreme region configuration object.
+    """
+    # Mandatory fields
+    nside: int
+    nside_coverage: int
+
+    # Optional fields
+    default_bit: int = 0
+    max_bits: int = 8
+    nside_render: int = 16
+
+    @classmethod
+    def load_yaml(cls, configfile):
+        """
+        Load a yaml file into the config
+
+        Parameters
+        ----------
+        configfile : `str`
+           Filename of yaml file
+
+        Returns
+        -------
+        config : `Configuration`
+        """
+        with open(configfile) as f:
+            _config = yaml.load(f, Loader=yaml.SafeLoader)
+
+        return cls(**_config)

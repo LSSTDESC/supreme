@@ -37,7 +37,8 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
 
         self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestPatchHsc-')
 
-        config = supreme.Configuration.load_yaml(os.path.join('configs/config_quick_tract_rc2.yaml'))
+        config = supreme.Configuration.load_yaml(os.path.join('./', 'configs',
+                                                              'config_quick_tract_rc2.yaml'))
 
         mapper = supreme.MultiMapper(self.butler, config, self.test_dir, ncores=2)
         mapper([tract], [filter_name])
