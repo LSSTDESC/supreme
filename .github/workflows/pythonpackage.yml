@@ -32,7 +32,10 @@ jobs:
     - name: Install git
       shell: bash -l {0}
       run: |
-        conda install -y git
+        gittest=`conda list git | grep git`
+        if [ -z "$gittest" ]; then
+            conda install -y git
+        fi
     - name: Check out test data
       shell: bash -l {0}
       run: |
