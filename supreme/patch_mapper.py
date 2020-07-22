@@ -331,7 +331,6 @@ class PatchMapper(object):
                                                               dtype=healsparse.WIDE_MASK,
                                                               wide_mask_maxbits=len(ccds))
         metadata = {}
-        poly_map_list = []
         for bit, ccd in enumerate(ccds):
             metadata['B%04dCCD' % (bit)] = ccd['ccd']
             metadata['B%04dVIS' % (bit)] = ccd['visit']
@@ -394,8 +393,8 @@ class PatchMapper(object):
             metadata['B%04dBGM' % (bit)] = calexp_metadata['BGMEAN']
             metadata['B%04dBGV' % (bit)] = calexp_metadata['BGVAR']
 
-            # Now we have the full masked ccd map, append to list
-            poly_map_list.append(poly_map)
+            # Now we have the full masked ccd map, set the appropriate bit
+            patch_input_map.set_bits_pix(poly_map.valid_pixels, [bit])
 
         # Now cut down to the inner tract polygon
         poly_vertices = patch_info.getInnerSkyPolygon(tract_wcs).getVertices()
@@ -405,12 +404,6 @@ class PatchMapper(object):
 
         # Realize the patch polygon
         patch_poly_map = patch_poly.get_map_like(patch_input_map)
-        # Combine all masked ccd polygons
-        if len(poly_map_list) == 1:
-            patch_input_map = poly_map_list[0]
-        else:
-            patch_input_map = healsparse.or_union(poly_map_list)
-        # And limit to the patch polygon
         patch_input_map = healsparse.and_intersection([patch_input_map, patch_poly_map])
 
         # And set the metadata
