@@ -22,11 +22,11 @@ global _butler_dict
 _butler_dict = {}
 
 
-def pool_initializer(butler, worker_index):
+def pool_initializer(butler, is_single):
     proc = multiprocessing.Process()
     this_core = proc._identity[0]
 
-    if this_core == worker_index:
+    if is_single:
         _butler_dict[this_core] = butler
     else:
         repo = butler._repos._inputs[0].repoArgs.root

@@ -2,8 +2,9 @@ import os
 import numpy as np
 import healpy as hp
 import healsparse
-import multiprocessing
 from multiprocessing import Pool
+
+import lsst.log
 
 from .patch_mapper import PatchMapper, pool_initializer
 from .utils import approx_patch_polygon_area, op_str_to_code
@@ -32,6 +33,8 @@ class MultiMapper(object):
         self.config = config
         self.outputpath = outputpath
         self.ncores = ncores
+
+        lsst.log.setLevel("", lsst.log.ERROR)
 
         if not os.path.isdir(outputpath):
             raise RuntimeError("Outputpath %s does not exist." % (outputpath))
@@ -134,13 +137,9 @@ class MultiMapper(object):
                              [map_run]*len(multi_dict[tract][f]),
                              [clobber]*len(multi_dict[tract][f]))
 
-                proc = multiprocessing.Process()
-                worker_index = proc._identity[0] + 1
-                proc = None
-
                 pool = Pool(processes=self.ncores,
                             initializer=pool_initializer,
-                            initargs=(self.butler, worker_index))
+                            initargs=(self.butler, self.ncores == 1))
                 results = pool.starmap(patch_mapper, values, chunksize=1)
                 pool.close()
                 pool.join()
