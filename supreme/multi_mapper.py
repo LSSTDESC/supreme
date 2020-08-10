@@ -3,12 +3,11 @@ import numpy as np
 import healpy as hp
 import healsparse
 from multiprocessing import Pool
-import time
 
 import lsst.log
 
 from .patch_mapper import PatchMapper, pool_initializer
-from .utils import approx_patch_polygon_area, op_str_to_code, op_code_to_str
+from .utils import approx_patch_polygon_area, op_str_to_code
 
 
 class MultiMapper(object):
@@ -148,32 +147,19 @@ class MultiMapper(object):
                 if not consolidate:
                     continue
 
-                # New pool for parallelizing consoldation
-                pool = Pool(processes=self.ncores)
-
                 for i, map_type in enumerate(self.config.map_types):
                     for j, op_str in enumerate(self.config.map_types[map_type]):
                         if map_run is not None:
                             if not map_run[map_type][j]:
                                 continue
-                        print('Calling %s, %s at %.5f' % (map_type, op_str, time.time()))
 
-                        if self.ncores > 1:
-                            pool.apply_async(self._consolidate_tract_from_results,
-                                             (tract, f, nside_coverage_tract,
-                                              map_type, op_str_to_code(op_str),
-                                              results, i, j),
-                                             {'clobber': clobber})
-                        else:
-                            self._consolidate_tract_from_results(tract,
-                                                                 f,
-                                                                 nside_coverage_tract,
-                                                                 map_type,
-                                                                 op_str_to_code(op_str),
-                                                                 results, i, j,
-                                                                 clobber=clobber)
-                pool.close()
-                pool.join()
+                        self._consolidate_tract_from_results(tract,
+                                                             f,
+                                                             nside_coverage_tract,
+                                                             map_type,
+                                                             op_str_to_code(op_str),
+                                                             results, i, j,
+                                                             clobber=clobber)
 
     def _consolidate_tract_from_results(self, tract, filtername, nside_coverage_tract,
                                         map_type, op_code,
@@ -201,7 +187,6 @@ class MultiMapper(object):
         op_index : `int`
            Index of operation
         """
-        print('Starting %s, %s at %.5f' % (map_type, op_code_to_str(op_code), time.time()))
         dt = results[0][1][map_index][:, op_index].dtype
 
         tract_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_tract,
@@ -219,7 +204,6 @@ class MultiMapper(object):
                                                             map_type,
                                                             op_code))
         tract_map.write(fname, clobber=clobber)
-        print('Finishing %s, %s at %.5f' % (map_type, op_code_to_str(op_code), time.time()))
 
     def _compute_nside_coverage_tract(self, tract_info):
         """
