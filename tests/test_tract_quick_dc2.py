@@ -45,6 +45,7 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
         expected_dict = OrderedDict()
         expected_dict['patch_inputs'] = [14000, '2,2']
         expected_dict['exptime_sum'] = [29.0, 61.0, 'float64']
+        expected_dict['airmass_wmean'] = [1.0, 1.2, 'float64']
 
         self.check_expected_maps_tract(expected_dict, tract, filter_name)
 
