@@ -3,11 +3,12 @@ import numpy as np
 import healpy as hp
 import healsparse
 from multiprocessing import Pool
+import time
 
 import lsst.log
 
 from .patch_mapper import PatchMapper, pool_initializer
-from .utils import approx_patch_polygon_area, op_str_to_code
+from .utils import approx_patch_polygon_area, op_str_to_code, op_code_to_str
 
 
 class MultiMapper(object):
@@ -147,34 +148,78 @@ class MultiMapper(object):
                 if not consolidate:
                     continue
 
+                # New pool for parallelizing consoldation
+                pool = Pool(processes=self.ncores)
+
                 for i, map_type in enumerate(self.config.map_types):
                     for j, op_str in enumerate(self.config.map_types[map_type]):
                         if map_run is not None:
                             if not map_run[map_type][j]:
                                 continue
-                        op_code = op_str_to_code(op_str)
-                        patch_input_map = results[0][0]
-                        map_values_list = results[0][1]
+                        print('Calling %s, %s at %.5f' % (map_type, op_str, time.time()))
 
-                        nct = nside_coverage_tract
-                        ns = self.config.nside
-                        dt = map_values_list[i][:, j].dtype
-                        tract_map = healsparse.HealSparseMap.make_empty(nside_coverage=nct,
-                                                                        nside_sparse=ns,
-                                                                        dtype=dt)
+                        if self.ncores > 1:
+                            pool.apply_async(self._consolidate_tract_from_results,
+                                             (tract, f, nside_coverage_tract,
+                                              map_type, op_str_to_code(op_str),
+                                              results, i, j),
+                                             {'clobber': clobber})
+                        else:
+                            self._consolidate_tract_from_results(tract,
+                                                                 f,
+                                                                 nside_coverage_tract,
+                                                                 map_type,
+                                                                 op_str_to_code(op_str),
+                                                                 results, i, j,
+                                                                 clobber=clobber)
+                pool.close()
+                pool.join()
 
-                        # Put together all the patch maps
-                        for patch_input_map, map_values_list in results:
-                            tract_map.update_values_pix(patch_input_map.valid_pixels,
-                                                        map_values_list[i][:, j])
+    def _consolidate_tract_from_results(self, tract, filtername, nside_coverage_tract,
+                                        map_type, op_code,
+                                        results, map_index, op_index,
+                                        clobber=False):
+        """
+        Consolidate tract from the results.  Suitable to be run asynchronously.
 
-                        fname = os.path.join(self.outputpath,
-                                             self.config.tract_relpath(tract),
-                                             self.config.tract_map_filename(f,
-                                                                            tract,
-                                                                            map_type,
-                                                                            op_code))
-                        tract_map.write(fname, clobber=clobber)
+        Parameters
+        ----------
+        tract : `int`
+           Tract number
+        filtername : `str`
+           Name of the filter
+        nside_coverage_tract : `int`
+           nside_coverage for the tract map
+        map_type : `str`
+           Name of map type
+        op_code : `int`
+           Code for the operation
+        results : `list` of `tuple`
+           Parallelized results list
+        map_index : `int`
+           Index of map
+        op_index : `int`
+           Index of operation
+        """
+        print('Starting %s, %s at %.5f' % (map_type, op_code_to_str(op_code), time.time()))
+        dt = results[0][1][map_index][:, op_index].dtype
+
+        tract_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_tract,
+                                                        nside_sparse=self.config.nside,
+                                                        dtype=dt)
+
+        for patch_input_map, map_values_list in results:
+            tract_map.update_values_pix(patch_input_map.valid_pixels,
+                                        map_values_list[map_index][:, op_index])
+
+        fname = os.path.join(self.outputpath,
+                             self.config.tract_relpath(tract),
+                             self.config.tract_map_filename(filtername,
+                                                            tract,
+                                                            map_type,
+                                                            op_code))
+        tract_map.write(fname, clobber=clobber)
+        print('Finishing %s, %s at %.5f' % (map_type, op_code_to_str(op_code), time.time()))
 
     def _compute_nside_coverage_tract(self, tract_info):
         """
