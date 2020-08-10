@@ -535,6 +535,11 @@ class PatchMapper(object):
         mask_array = mask.getArray()
         good, = np.where((mask_array[coadd_xy[:, 1], coadd_xy[:, 0]] &
                           2**mask.getMaskPlaneDict()['NO_DATA']) == 0)
+
+        if good.size == 0:
+            # There are no good pixels with data, so just kick out
+            return
+
         coadd_xy = coadd_xy[good, :]
         coadd_radec = coadd_radec[good, :]
 
