@@ -152,29 +152,58 @@ class MultiMapper(object):
                         if map_run is not None:
                             if not map_run[map_type][j]:
                                 continue
-                        op_code = op_str_to_code(op_str)
-                        patch_input_map = results[0][0]
-                        map_values_list = results[0][1]
 
-                        nct = nside_coverage_tract
-                        ns = self.config.nside
-                        dt = map_values_list[i][:, j].dtype
-                        tract_map = healsparse.HealSparseMap.make_empty(nside_coverage=nct,
-                                                                        nside_sparse=ns,
-                                                                        dtype=dt)
+                        self._consolidate_tract_from_results(tract,
+                                                             f,
+                                                             nside_coverage_tract,
+                                                             map_type,
+                                                             op_str_to_code(op_str),
+                                                             results, i, j,
+                                                             clobber=clobber)
 
-                        # Put together all the patch maps
-                        for patch_input_map, map_values_list in results:
-                            tract_map.update_values_pix(patch_input_map.valid_pixels,
-                                                        map_values_list[i][:, j])
+    def _consolidate_tract_from_results(self, tract, filtername, nside_coverage_tract,
+                                        map_type, op_code,
+                                        results, map_index, op_index,
+                                        clobber=False):
+        """
+        Consolidate tract from the results.  Suitable to be run asynchronously.
 
-                        fname = os.path.join(self.outputpath,
-                                             self.config.tract_relpath(tract),
-                                             self.config.tract_map_filename(f,
-                                                                            tract,
-                                                                            map_type,
-                                                                            op_code))
-                        tract_map.write(fname, clobber=clobber)
+        Parameters
+        ----------
+        tract : `int`
+           Tract number
+        filtername : `str`
+           Name of the filter
+        nside_coverage_tract : `int`
+           nside_coverage for the tract map
+        map_type : `str`
+           Name of map type
+        op_code : `int`
+           Code for the operation
+        results : `list` of `tuple`
+           Parallelized results list
+        map_index : `int`
+           Index of map
+        op_index : `int`
+           Index of operation
+        """
+        dt = results[0][1][map_index][:, op_index].dtype
+
+        tract_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_tract,
+                                                        nside_sparse=self.config.nside,
+                                                        dtype=dt)
+
+        for patch_input_map, map_values_list in results:
+            tract_map.update_values_pix(patch_input_map.valid_pixels,
+                                        map_values_list[map_index][:, op_index])
+
+        fname = os.path.join(self.outputpath,
+                             self.config.tract_relpath(tract),
+                             self.config.tract_map_filename(filtername,
+                                                            tract,
+                                                            map_type,
+                                                            op_code))
+        tract_map.write(fname, clobber=clobber)
 
     def _compute_nside_coverage_tract(self, tract_info):
         """
