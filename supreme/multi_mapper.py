@@ -107,6 +107,8 @@ class MultiMapper(object):
 
                 # Check for existing files, if clobber is False
                 map_run = None
+                ntot = 0
+                nskip = 0
                 if not clobber:
                     # This logic here only works for tract maps, and not for patch
                     # maps.  To support what I think is an edge case (where it
@@ -115,6 +117,7 @@ class MultiMapper(object):
                     for i, map_type in enumerate(self.config.map_types):
                         map_run[map_type] = []
                         for j, op_str in enumerate(self.config.map_types[map_type]):
+                            ntot += 1
                             op_code = op_str_to_code(op_str)
                             fname = os.path.join(self.outputpath,
                                                  self.config.tract_relpath(tract),
@@ -124,8 +127,13 @@ class MultiMapper(object):
                                                                                 op_code))
                             map_run[map_type].append(not os.path.isfile(fname))
                             if not map_run[map_type][-1]:
+                                nskip += 1
                                 print('Found %s; skipping render as clobber is False' %
                                       (fname))
+
+                    if nskip == ntot:
+                        print('All maps have already been rendered and clobber is False.')
+                        continue
 
                 print('Running on tract %d / filter %s with %d cores.' %
                       (tract, f, self.ncores))
