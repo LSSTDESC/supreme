@@ -144,6 +144,7 @@ class PatchMapper(object):
         has_metadata_quantity = False
         has_calibrated_quantity = False
         has_coadd_quantity = False
+        has_parallactic_quantity = False
         map_values_list = []
         self.map_operation_list = []
         for map_type in self.config.map_types.keys():
@@ -156,6 +157,8 @@ class PatchMapper(object):
                 if map_type == 'skylevel' or map_type == 'skysigma' or \
                         map_type == 'bgmean' or map_type == 'background':
                     has_calibrated_quantity = True
+                if map_type.startswith('dcr') or map_type == 'parallactic':
+                    has_parallactic_quantity = True
                 if map_type.startswith('coadd'):
                     has_coadd_quantity = True
 
@@ -224,6 +227,12 @@ class PatchMapper(object):
                     skysigma = calexp_metadata['SKYSIGMA']
                     bgmean = calexp_metadata['BGMEAN']
 
+            if has_parallactic_quantity:
+                vi = ccd.getVisitInfo()
+                azalt = vi.getBoresightAzAlt()
+                zenith = np.pi/2. - azalt.getLatitude().asRadians()
+                par_angle = vi.getBoresightParAngle().asRadians()
+
             if has_calibrated_quantity:
                 xy = radec_to_xy(ccd.getWcs(), vpix_ra[u], vpix_dec[u])
                 calib_scale = self._compute_calib_scale(ccd, xy)
@@ -249,6 +258,16 @@ class PatchMapper(object):
                                                    np.deg2rad(vpix_ra[u]),
                                                    np.deg2rad(vpix_dec[u]),
                                                    units=['rad', 'rad'])
+                elif map_type == 'dcr_dra':
+                    values = np.zeros(u.size) + np.tan(zenith)*np.sin(par_angle)
+                elif map_type == 'dcr_ddec':
+                    values = np.zeros(u.size) + np.tan(zenith)*np.cos(par_angle)
+                elif map_type == 'dcr_e1':
+                    values = np.zeros(u.size) + (np.tan(zenith)**2.)*np.cos(2*par_angle)
+                elif map_type == 'dcr_e2':
+                    values = np.zeros(u.size) + (np.tan(zenith)**2.)*np.sin(2*par_angle)
+                elif map_type == 'parallactic':
+                    values = np.zeros(u.size) + par_angle
                 elif map_type == 'nexp':
                     values = np.ones(u.size, dtype=np.int32)
                 elif map_type == 'skylevel':
