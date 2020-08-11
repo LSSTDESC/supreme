@@ -153,6 +153,9 @@ class MultiMapper(object):
                             if not map_run[map_type][j]:
                                 continue
 
+                        print('Consolidating tract %s / filter %s: %s, %s' %
+                              (tract, f, map_type, op_str))
+
                         self._consolidate_tract_from_results(tract,
                                                              f,
                                                              nside_coverage_tract,

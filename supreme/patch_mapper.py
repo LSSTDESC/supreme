@@ -137,12 +137,14 @@ class PatchMapper(object):
             patch_input_map.write(patch_input_filename, clobber=clobber)
 
         # Now we build maps
-        valid_pixels, ra, dec = patch_input_map.valid_pixels_pos(lonlat=True, return_pixels=True)
+        valid_pixels, vpix_ra, vpix_dec = patch_input_map.valid_pixels_pos(lonlat=True,
+                                                                           return_pixels=True)
 
         has_psf_quantity = False
         has_metadata_quantity = False
         has_calibrated_quantity = False
         has_coadd_quantity = False
+        has_parallactic_quantity = False
         map_values_list = []
         self.map_operation_list = []
         for map_type in self.config.map_types.keys():
@@ -155,6 +157,8 @@ class PatchMapper(object):
                 if map_type == 'skylevel' or map_type == 'skysigma' or \
                         map_type == 'bgmean' or map_type == 'background':
                     has_calibrated_quantity = True
+                if map_type.startswith('dcr') or map_type == 'parallactic':
+                    has_parallactic_quantity = True
                 if map_type.startswith('coadd'):
                     has_coadd_quantity = True
 
@@ -207,7 +211,8 @@ class PatchMapper(object):
                 psf_size, psf_e1, psf_e2 = get_approx_psf_size_and_shape(ccd_box,
                                                                          ccd.getPsf(),
                                                                          ccd.getWcs(),
-                                                                         ra[u], dec[u])
+                                                                         vpix_ra[u],
+                                                                         vpix_dec[u])
 
             if has_metadata_quantity:
                 if ('B%04dSLV' % (bit)) in metadata:
@@ -222,8 +227,14 @@ class PatchMapper(object):
                     skysigma = calexp_metadata['SKYSIGMA']
                     bgmean = calexp_metadata['BGMEAN']
 
+            if has_parallactic_quantity:
+                vi = ccd.getVisitInfo()
+                azalt = vi.getBoresightAzAlt()
+                zenith = np.pi/2. - azalt.getLatitude().asRadians()
+                par_angle = vi.getBoresightParAngle().asRadians()
+
             if has_calibrated_quantity:
-                xy = radec_to_xy(ccd.getWcs(), ra[u], dec[u])
+                xy = radec_to_xy(ccd.getWcs(), vpix_ra[u], vpix_dec[u])
                 calib_scale = self._compute_calib_scale(ccd, xy)
 
             for i, map_type in enumerate(self.config.map_types.keys()):
@@ -239,6 +250,24 @@ class PatchMapper(object):
                     values = np.zeros(u.size) + ccd.getVisitInfo().getExposureTime()
                 elif map_type == 'airmass':
                     values = np.zeros(u.size) + ccd.getVisitInfo().getBoresightAirmass()
+                elif map_type == 'boresight_dist':
+                    # Distance from the boresight in radians
+                    bore = ccd.getVisitInfo().getBoresightRaDec()
+                    bore_ra_rad, bore_dec_rad = bore.getRa().asRadians(), bore.getDec().asRadians()
+                    values = esutil.coords.sphdist(bore_ra_rad, bore_dec_rad,
+                                                   np.deg2rad(vpix_ra[u]),
+                                                   np.deg2rad(vpix_dec[u]),
+                                                   units=['rad', 'rad'])
+                elif map_type == 'dcr_dra':
+                    values = np.zeros(u.size) + np.tan(zenith)*np.sin(par_angle)
+                elif map_type == 'dcr_ddec':
+                    values = np.zeros(u.size) + np.tan(zenith)*np.cos(par_angle)
+                elif map_type == 'dcr_e1':
+                    values = np.zeros(u.size) + (np.tan(zenith)**2.)*np.cos(2*par_angle)
+                elif map_type == 'dcr_e2':
+                    values = np.zeros(u.size) + (np.tan(zenith)**2.)*np.sin(2*par_angle)
+                elif map_type == 'parallactic':
+                    values = np.zeros(u.size) + par_angle
                 elif map_type == 'nexp':
                     values = np.ones(u.size, dtype=np.int32)
                 elif map_type == 'skylevel':
