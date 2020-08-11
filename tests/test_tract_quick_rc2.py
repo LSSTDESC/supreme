@@ -47,6 +47,8 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
         expected_dict['patch_inputs'] = [4500, '2,1', '2,2']
         expected_dict['exptime_sum'] = [199.0, 401.0, 'float64']
         expected_dict['airmass_wmean'] = [1.14, 1.3, 'float64']
+        expected_dict['coadd_image_mean'] = [-0.1, 15.0, 'float64']
+        expected_dict['coadd_mask_or'] = [-1, 54000, 'int32']
 
         mod_times1 = self.check_expected_maps_tract(expected_dict, tract, filter_name)
 
@@ -56,6 +58,13 @@ class TractQuickRc2TestCase(supreme_test_base.SupremeTestBase):
         self.check_mod_times(mod_times1, mod_times2, 'greater')
 
         # And a third run, clobber=False
+        mapper([tract], [filter_name], clobber=False)
+        mod_times3 = self.check_expected_maps_tract(expected_dict, tract, filter_name)
+        self.check_mod_times(mod_times2, mod_times3, 'equal')
+
+        # A fourth run, clobber=False, extra map to test coadd operation skipping
+        config.map_types['nexp'] = ['sum']
+        mapper = supreme.MultiMapper(self.butler, config, self.test_dir, ncores=2)
         mapper([tract], [filter_name], clobber=False)
         mod_times3 = self.check_expected_maps_tract(expected_dict, tract, filter_name)
         self.check_mod_times(mod_times2, mod_times3, 'equal')

@@ -181,10 +181,10 @@ class PatchMapper(object):
                     # We use fmin and fmax, so nans get overwritten
                     map_values[:, j] = np.nan
                 if map_type in ['coadd_image', 'coadd_variance']:
-                    if op_code != OP_MEAN:
+                    if op_code != OP_MEAN and op_code != OP_NONE:
                         raise RuntimeError("Coadd image, variance must only be MEAN")
                 elif map_type in ['coadd_mask']:
-                    if op_code != OP_OR:
+                    if op_code != OP_OR and op_code != OP_NONE:
                         raise RuntimeError("Coadd mask must only be OR")
 
             map_values_list.append(map_values)
