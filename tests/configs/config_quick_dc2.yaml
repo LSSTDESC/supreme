@@ -4,6 +4,7 @@ map_types:
   exptime: ['sum']
   nexp: ['sum']
   airmass: ['min', 'max', 'wmean']
+  boresight_dist: ['wmean']
   psf_size: ['wmean']
   psf_e1: ['wmean']
   psf_e2: ['wmean']

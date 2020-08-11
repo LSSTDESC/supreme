@@ -49,6 +49,7 @@ class PatchQuickDc2TestCase(supreme_test_base.SupremeTestBase):
         expected_dict['airmass_max'] = [1.0, 1.2, 'float64']
         expected_dict['airmass_min'] = [1.0, 1.2, 'float64']
         expected_dict['airmass_wmean'] = [1.0, 1.2, 'float64']
+        expected_dict['boresight_dist_wmean'] = [0.0080, 0.015, 'float64']
         expected_dict['background_wmean'] = [2290.0, 2297.0, 'float64']
         expected_dict['bgmean_wmean'] = [2290.0, 2297.0, 'float64']
         expected_dict['exptime_sum'] = [29.0, 61.0, 'float64']

@@ -16,7 +16,7 @@ OP_OR = 6
 
 valid_map_types = ['psf_size', 'psf_e1', 'psf_e2',
                    'skylevel', 'skysigma', 'bgmean', 'background',
-                   'airmass',
+                   'airmass', 'boresight_dist',
                    'nexp', 'exptime',
                    'coadd_image', 'coadd_variance', 'coadd_mask']
 
