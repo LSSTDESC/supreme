@@ -99,9 +99,9 @@ class PatchMapper(object):
                                     patch=patch_name,
                                     filter=filter_name):
             if tract_mode:
-                return None, None
+                return None, None, False
             else:
-                return None
+                return None, False
 
         # Create the path for tract/patches (if nessary)
         os.makedirs(os.path.join(self.outputpath,
@@ -115,8 +115,15 @@ class PatchMapper(object):
         patch_info = tract_info.getPatchInfo(patch_indices)
 
         nside_coverage_patch = self._compute_nside_coverage_patch(patch_info, tract_info)
+        try:
+            exposure = butler.get('deepCoadd', tract=tract, patch=patch_name, filter=filter_name)
+        except RuntimeError:
+            print("Error reading deepCoadd for %d / %s / %s" % (tract, filter_name, patch_name))
+            if tract_mode:
+                return None, None, True
+            else:
+                return None, True
 
-        exposure = butler.get('deepCoadd', tract=tract, patch=patch_name, filter=filter_name)
         info = exposure.getInfo()
         inputs = info.getCoaddInputs()
 
@@ -331,7 +338,9 @@ class PatchMapper(object):
                         temp_map.write(fname, clobber=clobber)
 
         if tract_mode:
-            return patch_input_map, map_values_list
+            return patch_input_map, map_values_list, False
+        else:
+            return None, False
 
     def build_patch_input_map(self, butler, tract_wcs, patch_info, ccds, nside_coverage_patch):
         """
