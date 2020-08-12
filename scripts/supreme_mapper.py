@@ -27,6 +27,8 @@ if __name__ == '__main__':
                         help='Save individual patches instead of consolidating tracts')
     parser.add_argument('-k', '--clobber', action='store_true', required=False,
                         help='Clobber any existing files')
+    parser.add_argument('-d', '--do_raise', action='store_true', required=False,
+                        help='Raise if there are any failures.')
 
     args = parser.parse_args()
 
@@ -42,4 +44,4 @@ if __name__ == '__main__':
 
     mapper = supreme.MultiMapper(butler, config, args.outputpath, ncores=args.cores)
     mapper(tracts, filters, patches=patches, consolidate=not args.individual_patches,
-           clobber=args.clobber)
+           clobber=args.clobber, do_raise=args.do_raise)

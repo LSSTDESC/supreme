@@ -40,7 +40,7 @@ class MultiMapper(object):
             raise RuntimeError("Outputpath %s does not exist." % (outputpath))
 
     def __call__(self, tracts, filters, patches=None, find_only=False, consolidate=True,
-                 clobber=False):
+                 clobber=False, do_raise=False):
         """
         Compute the maps for a combination of tracts, filters, and patches.
 
@@ -63,6 +63,9 @@ class MultiMapper(object):
            patch/filter maps for saving
         clobber : `bool`, optional
            Clobber any existing files
+        do_raise : `bool`, optional
+           Raise if there are any failures.  Otherwise continue to
+           next tract / filter
         """
         skymap = self.butler.get('deepCoadd_skyMap')
 
@@ -155,6 +158,15 @@ class MultiMapper(object):
                 if not consolidate:
                     continue
 
+                # Check for failures, raise if requested
+                if np.any(np.array([r[2] for r in results])):
+                    print("FAIL: Map failure on %d / %s" % (tract, f))
+                    if do_raise:
+                        raise RuntimeError("Exiting after failure on %d / %s" %
+                                           (tract, f))
+                    else:
+                        continue
+
                 for i, map_type in enumerate(self.config.map_types):
                     for j, op_str in enumerate(self.config.map_types[map_type]):
                         if map_run is not None:
@@ -204,7 +216,7 @@ class MultiMapper(object):
                                                         nside_sparse=self.config.nside,
                                                         dtype=dt)
 
-        for patch_input_map, map_values_list in results:
+        for patch_input_map, map_values_list, fails in results:
             tract_map.update_values_pix(patch_input_map.valid_pixels,
                                         map_values_list[map_index][:, op_index])
 
