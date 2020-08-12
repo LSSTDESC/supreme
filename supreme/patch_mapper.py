@@ -552,6 +552,10 @@ class PatchMapper(object):
         map_values_list : `list`
            List encoding all the map values to accumulate.
         """
+        if valid_pixels.size == 0:
+            # There is nothing to do here.
+            return
+
         # Convert the coadd pixel grid to ra/dec
         coadd_xy, coadd_radec = bbox_to_radec_grid(exposure.getWcs(),
                                                    patch_info.getInnerBBox())
