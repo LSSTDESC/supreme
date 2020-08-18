@@ -11,6 +11,8 @@ if __name__ == '__main__':
                         help='YAML config file')
     parser.add_argument('-o', '--outputpath', action='store', type=str, required=False,
                         default='./', help='Name of output path.')
+    parser.add_argument('-b', '--outputbase', action='store', type=str, required=False,
+                        help='Name of output base filename of consolidated maps.')
     parser.add_argument('-t', '--tracts', action='store', type=str, required=False,
                         help='Name of tract(s), ^ delimited')
     parser.add_argument('-f', '--filters', action='store', type=str, required=True,
@@ -32,4 +34,5 @@ if __name__ == '__main__':
     filters = [f for f in args.filters.split('^')]
 
     consolidator = supreme.TractConsolidator(config, args.outputpath)
-    _ = consolidator(filters, tracts=tracts, clobber=args.clobber, nside_coverage=args.nside_coverage)
+    _ = consolidator(filters, tracts=tracts, clobber=args.clobber,
+                     nside_coverage=args.nside_coverage, outputbase=args.outputbase)

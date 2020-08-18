@@ -26,7 +26,8 @@ class TractConsolidator(object):
         if not os.path.isdir(outputpath):
             raise RuntimeError("Outputpath %s does not exist." % (outputpath))
 
-    def __call__(self, filters, tracts=None, clobber=False, nside_coverage=None):
+    def __call__(self, filters, tracts=None, clobber=False, nside_coverage=None,
+                 outputbase=None):
         """
         Consolidate maps for a combination of tracts / filters.
 
@@ -45,6 +46,8 @@ class TractConsolidator(object):
         nside_coverage : `int`, optional
            nside for the healsparse coverage map.  If None, use the same
            as the tracts.
+        outputbase : `str`, optional
+           Filename base for output consolidate files.
 
         Returns
         -------
@@ -65,6 +68,9 @@ class TractConsolidator(object):
                 print('No tract directories found in %s.' % (self.outputpath))
                 return [], [], []
             tracts = [int(d) for d in subdirs]
+
+        if outputbase is None:
+            outputbase = self.config.outbase
 
         map_files = []
         map_inputs = []
@@ -99,7 +105,8 @@ class TractConsolidator(object):
                           (len(consolidate_files), map_type, op_str))
 
                     outfile = os.path.join(self.outputpath,
-                                           self.config.consolidated_map_filename(f,
+                                           self.config.consolidated_map_filename(outputbase,
+                                                                                 f,
                                                                                  map_type,
                                                                                  op_code))
                     if os.path.isfile(outfile) and not clobber:

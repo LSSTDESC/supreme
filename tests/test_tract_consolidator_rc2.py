@@ -53,7 +53,8 @@ class TractConsolidateTestCase(supreme_test_base.SupremeTestBase):
                     op_code = op_str_to_code(op_str)
 
                     combofile = os.path.join(self.test_dir,
-                                             config.consolidated_map_filename(f,
+                                             config.consolidated_map_filename(config.outbase,
+                                                                              f,
                                                                               map_type,
                                                                               op_code))
 
@@ -101,9 +102,10 @@ class TractConsolidateTestCase(supreme_test_base.SupremeTestBase):
         filters = ['HSC-G']
         self._create_fake_maps(config, tracts, filters)
 
-        # Run the consolidation
+        # Run the consolidation, test override outputbase
         consolidator = supreme.TractConsolidator(config, self.test_dir)
-        consolidated_tracts, map_files, map_inputs = consolidator(filters, tracts=run_tracts)
+        consolidated_tracts, map_files, map_inputs = consolidator(filters, tracts=run_tracts,
+                                                                  outputbase='sometracts')
 
         # Make sure the files are there
         nfiles = 0
@@ -113,7 +115,8 @@ class TractConsolidateTestCase(supreme_test_base.SupremeTestBase):
                     op_code = op_str_to_code(op_str)
 
                     combofile = os.path.join(self.test_dir,
-                                             config.consolidated_map_filename(f,
+                                             config.consolidated_map_filename('sometracts',
+                                                                              f,
                                                                               map_type,
                                                                               op_code))
 

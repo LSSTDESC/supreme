@@ -92,8 +92,8 @@ class Configuration(object):
                                         map_type,
                                         op_code_to_str(operation))
 
-    def consolidated_map_filename(self, filter_name, map_type, operation):
-        return "%s_%s_%s_%s.hs" % (self.outbase,
+    def consolidated_map_filename(self, outputbase, filter_name, map_type, operation):
+        return "%s_%s_%s_%s.hs" % (outputbase,
                                    filter_name,
                                    map_type,
                                    op_code_to_str(operation))
