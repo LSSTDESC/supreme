@@ -4,11 +4,16 @@ import numpy as np
 import healpy as hp
 import healsparse
 import esutil
+import warnings
 
 import lsst.geom
 import lsst.afw.geom as afwGeom
 import lsst.afw.math as afwMath
 import lsst.daf.persistence as dafPersist
+
+import astropy.units as units
+from astropy.time import Time
+from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 
 from .utils import vertices_to_radec, pixels_to_radec, radec_to_xy
 from .utils import OP_NONE, OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX, OP_OR
@@ -152,6 +157,7 @@ class PatchMapper(object):
         has_calibrated_quantity = False
         has_coadd_quantity = False
         has_parallactic_quantity = False
+        has_zenith_quantity = False
         map_values_list = []
         self.map_operation_list = []
         for map_type in self.config.map_types.keys():
@@ -164,8 +170,11 @@ class PatchMapper(object):
                 if map_type == 'skylevel' or map_type == 'skysigma' or \
                         map_type == 'bgmean' or map_type == 'background':
                     has_calibrated_quantity = True
+                if map_type == 'airmass':
+                    has_zenith_quantity = True
                 if map_type.startswith('dcr') or map_type == 'parallactic':
                     has_parallactic_quantity = True
+                    has_zenith_quantity = True
                 if map_type.startswith('coadd'):
                     has_coadd_quantity = True
 
@@ -213,6 +222,18 @@ class PatchMapper(object):
             weights[u] += ccd['weight']
             nexp[u] += 1
 
+            if has_zenith_quantity:
+                if bit == 0:
+                    # Get the observatory location once
+                    obs = ccd.getVisitInfo().getObservatory()
+                    loc = EarthLocation(lat=obs.getLatitude().asDegrees()*units.deg,
+                                        lon=obs.getLongitude().asDegrees()*units.deg,
+                                        height=obs.getElevation()*units.m)
+
+                zenith = self._compute_zenith_angle(loc, ccd.getVisitInfo().getDate().get(),
+                                                    np.median(vpix_ra[u]),
+                                                    np.median(vpix_dec[u]))
+
             if has_psf_quantity:
                 ccd_box = lsst.geom.Box2D(ccd.getBBox())
                 psf_size, psf_e1, psf_e2 = get_approx_psf_size_and_shape(ccd_box,
@@ -236,8 +257,6 @@ class PatchMapper(object):
 
             if has_parallactic_quantity:
                 vi = ccd.getVisitInfo()
-                azalt = vi.getBoresightAzAlt()
-                zenith = np.pi/2. - azalt.getLatitude().asRadians()
                 par_angle = vi.getBoresightParAngle().asRadians()
 
             if has_calibrated_quantity:
@@ -256,7 +275,8 @@ class PatchMapper(object):
                 elif map_type == 'exptime':
                     values = np.zeros(u.size) + ccd.getVisitInfo().getExposureTime()
                 elif map_type == 'airmass':
-                    values = np.zeros(u.size) + ccd.getVisitInfo().getBoresightAirmass()
+                    # Use the median position on the CCD for the airmass
+                    values = self._compute_airmass(zenith)
                 elif map_type == 'boresight_dist':
                     # Distance from the boresight in radians
                     bore = ccd.getVisitInfo().getBoresightRaDec()
@@ -545,6 +565,52 @@ class PatchMapper(object):
                                      xy[:, 0].astype(np.int32)]
 
         return values
+
+    def _compute_zenith_angle(self, loc, mjd, ra, dec):
+        """
+        Compute the zenith angle for one or many ra/dec.
+
+        Parameters
+        ----------
+        loc : `astropy.coordinates.earth.EarthLocation`
+        mjd : `float`
+        ra : `np.ndarray`
+           Right ascension
+        dec : `np.ndarray`
+           Declination
+
+        Returns
+        -------
+        zenith : `np.ndarray`
+           Zenith angle(s) in radians
+        """
+        t = Time(mjd, format='mjd')
+        c = SkyCoord(ra, dec, unit='deg')
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            c_altaz = c.transform_to(AltAz(obstime=t, location=loc))
+        return np.pi/2. - c_altaz.alt.rad
+
+    def _compute_airmass(self, zenith):
+        """
+        Compute the airmass for a list of zenith angles.
+        Computed using simple expansion formula.
+
+        Parameters
+        ----------
+        zenith : `np.ndarray`
+           Zenith angle(s), radians
+
+        Returns
+        -------
+        airmass : `np.ndarray`
+        """
+        secz = 1./np.cos(zenith)
+        airmass = (secz -
+                   0.0018167*(secz - 1.0) -
+                   0.002875*(secz - 1.0)**2.0 -
+                   0.0008083*(secz - 1.0)**3.0)
+        return airmass
 
     def _update_coadd_map_values(self, exposure, patch_info, valid_pixels, map_values_list):
         """
