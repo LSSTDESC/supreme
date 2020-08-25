@@ -209,6 +209,7 @@ class PatchMapper(object):
         metadata = patch_input_map.metadata
         weights = np.zeros(valid_pixels.size)
         nexp = np.zeros(valid_pixels.size, dtype=np.int32)
+        loc = None
         for bit, ccd in enumerate(inputs.ccds):
             u, = np.where(patch_input_map.check_bits_pix(valid_pixels, [bit]))
             if u.size == 0:
@@ -223,7 +224,7 @@ class PatchMapper(object):
             nexp[u] += 1
 
             if has_zenith_quantity:
-                if bit == 0:
+                if loc is None:
                     # Get the observatory location once
                     obs = ccd.getVisitInfo().getObservatory()
                     loc = EarthLocation(lat=obs.getLatitude().asDegrees()*units.deg,
