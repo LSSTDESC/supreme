@@ -4,6 +4,7 @@ import numpy as np
 import healpy as hp
 import healsparse
 import esutil
+import warnings
 
 import lsst.geom
 import lsst.afw.geom as afwGeom
@@ -217,8 +218,10 @@ class PatchMapper(object):
             for i, ccd in enumerate(inputs.ccds):
                 mjds[i] = ccd.getVisitInfo().getDate().get()
             astropy_times = Time(mjds, format='mjd', location=loc)
-            # And compute the local sidereal times
-            astropy_lsts = astropy_times.sidereal_time('apparent')
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                # And compute the local sidereal times
+                astropy_lsts = astropy_times.sidereal_time('apparent')
             lsts = astropy_lsts.to_value(units.degree)
 
         metadata = patch_input_map.metadata
