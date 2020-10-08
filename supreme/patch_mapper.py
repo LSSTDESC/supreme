@@ -13,7 +13,8 @@ import lsst.daf.persistence as dafPersist
 
 import astropy.units as units
 from astropy.time import Time
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz
+import coord
+from astropy.coordinates import EarthLocation
 
 from .utils import vertices_to_radec, pixels_to_radec, radec_to_xy
 from .utils import OP_NONE, OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX, OP_OR
@@ -206,9 +207,27 @@ class PatchMapper(object):
             map_values_list.append(map_values)
             self.map_operation_list.append(op_list)
 
+        # Pre-compute times if necessary
+        if has_zenith_quantity:
+            obs = inputs.ccds[0].getVisitInfo().getObservatory()
+            loc = EarthLocation(lat=obs.getLatitude().asDegrees()*units.deg,
+                                lon=obs.getLongitude().asDegrees()*units.deg,
+                                height=obs.getElevation()*units.m)
+
+            mjds = np.zeros(len(inputs.ccds))
+            for i, ccd in enumerate(inputs.ccds):
+                mjds[i] = ccd.getVisitInfo().getDate().get()
+            astropy_times = Time(mjds, format='mjd', location=loc)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                # And compute the local sidereal times
+                astropy_lsts = astropy_times.sidereal_time('apparent')
+            lsts = astropy_lsts.to_value(units.degree)
+
         metadata = patch_input_map.metadata
         weights = np.zeros(valid_pixels.size)
         nexp = np.zeros(valid_pixels.size, dtype=np.int32)
+        loc = None
         for bit, ccd in enumerate(inputs.ccds):
             u, = np.where(patch_input_map.check_bits_pix(valid_pixels, [bit]))
             if u.size == 0:
@@ -223,14 +242,8 @@ class PatchMapper(object):
             nexp[u] += 1
 
             if has_zenith_quantity:
-                if bit == 0:
-                    # Get the observatory location once
-                    obs = ccd.getVisitInfo().getObservatory()
-                    loc = EarthLocation(lat=obs.getLatitude().asDegrees()*units.deg,
-                                        lon=obs.getLongitude().asDegrees()*units.deg,
-                                        height=obs.getElevation()*units.m)
-
-                zenith = self._compute_zenith_angle(loc, ccd.getVisitInfo().getDate().get(),
+                zenith = self._compute_zenith_angle(obs.getLatitude().asDegrees(),
+                                                    lsts[bit],
                                                     np.median(vpix_ra[u]),
                                                     np.median(vpix_dec[u]))
 
@@ -566,14 +579,16 @@ class PatchMapper(object):
 
         return values
 
-    def _compute_zenith_angle(self, loc, mjd, ra, dec):
+    def _compute_zenith_angle(self, latitude, lst, ra, dec):
         """
         Compute the zenith angle for one or many ra/dec.
 
         Parameters
         ----------
-        loc : `astropy.coordinates.earth.EarthLocation`
-        mjd : `float`
+        latitude : `float`
+           Observatory latitude (degrees)
+        lst : `float`
+           Local sidereal time (degrees)
         ra : `np.ndarray`
            Right ascension
         dec : `np.ndarray`
@@ -584,12 +599,15 @@ class PatchMapper(object):
         zenith : `np.ndarray`
            Zenith angle(s) in radians
         """
-        t = Time(mjd, format='mjd')
-        c = SkyCoord(ra, dec, unit='deg')
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            c_altaz = c.transform_to(AltAz(obstime=t, location=loc))
-        return np.pi/2. - c_altaz.alt.rad
+        c_ra = ra*coord.degrees
+        c_dec = dec*coord.degrees
+        c_ha = (lst - ra)*coord.degrees
+        c_lat = latitude*coord.degrees
+        c_zenith = coord.CelestialCoord(c_ha + c_ra, c_lat)
+        c_pointing = coord.CelestialCoord(c_ra, c_dec)
+        zenith_angle = c_pointing.distanceTo(c_zenith).rad
+
+        return zenith_angle
 
     def _compute_airmass(self, zenith):
         """
