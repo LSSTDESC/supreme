@@ -20,6 +20,8 @@ map_types:
   coadd_image: ['mean']
   coadd_variance: ['mean']
   coadd_mask: ['or']
+  maglim_aper: ['wmean']
+  maglim_psf: ['wmean']
 use_calexp_mask: False
 detector_id_name: ccd
 visit_id_name: visit

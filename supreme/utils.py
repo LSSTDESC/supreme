@@ -17,6 +17,7 @@ OP_OR = 6
 valid_map_types = ['psf_size', 'psf_e1', 'psf_e2',
                    'dcr_dra', 'dcr_ddec', 'dcr_e1', 'dcr_e2',
                    'skylevel', 'skysigma', 'bgmean', 'background',
+                   'maglim_aper', 'maglim_psf', 'psf_area',
                    'airmass', 'boresight_dist', 'parallactic',
                    'nexp', 'exptime',
                    'coadd_image', 'coadd_variance', 'coadd_mask']

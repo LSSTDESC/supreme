@@ -67,6 +67,8 @@ class PatchQuickRc2TestCase(supreme_test_base.SupremeTestBase):
         expected_dict['coadd_image_mean'] = [-0.1, 15.0, 'float64']
         expected_dict['coadd_variance_mean'] = [0.005, 0.03, 'float64']
         expected_dict['coadd_mask_or'] = [-1, 54000, 'int32']
+        expected_dict['maglim_aper_wmean'] = [23.44, 23.85, 'float64']
+        expected_dict['maglim_psf_wmean'] = [25.0, 25.5, 'float64']
 
         mod_times1 = self.check_expected_maps_patch(expected_dict, tract, patch, filter_name)
 

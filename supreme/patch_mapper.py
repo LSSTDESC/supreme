@@ -20,7 +20,7 @@ from .utils import vertices_to_radec, pixels_to_radec, radec_to_xy
 from .utils import OP_NONE, OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX, OP_OR
 from .utils import approx_patch_polygon_area, op_str_to_code
 from .utils import convert_mask_to_bbox_list, bbox_to_radec_grid
-from .psf import get_approx_psf_size_and_shape
+from .psf import get_approx_psf_size_and_shape, get_psf_area_center
 
 global _butler_dict
 
@@ -97,7 +97,6 @@ class PatchMapper(object):
         """
         # Copy in global butler for multiprocessing
         this_core = multiprocessing.current_process()._identity[0]
-
         butler = _butler_dict[this_core]
 
         if not butler.datasetExists('deepCoadd',
@@ -133,6 +132,8 @@ class PatchMapper(object):
         info = exposure.getInfo()
         inputs = info.getCoaddInputs()
 
+        coadd_zp = 2.5*np.log10(exposure.getPhotoCalib().getInstFluxAtZeroMagnitude())
+
         print('Working on patch %s with %d input ccds' % (patch_name, len(inputs.ccds)))
 
         # Check if we already have the persisted patch input map
@@ -154,6 +155,7 @@ class PatchMapper(object):
                                                                            return_pixels=True)
 
         has_psf_quantity = False
+        has_psf_area_quantity = False
         has_metadata_quantity = False
         has_calibrated_quantity = False
         has_coadd_quantity = False
@@ -166,6 +168,8 @@ class PatchMapper(object):
             if map_run is None or np.any(map_run[map_type]):
                 if map_type == 'psf_size' or map_type == 'psf_e1' or map_type == 'psf_e2':
                     has_psf_quantity = True
+                if map_type == 'psf_area' or map_type == 'maglim_psf':
+                    has_psf_area_quantity = True
                 if map_type == 'skylevel' or map_type == 'skysigma' or map_type == 'bgmean':
                     has_metadata_quantity = True
                 if map_type == 'skylevel' or map_type == 'skysigma' or \
@@ -254,6 +258,9 @@ class PatchMapper(object):
                                                                          ccd.getWcs(),
                                                                          vpix_ra[u],
                                                                          vpix_dec[u])
+            if has_psf_area_quantity:
+                ccd_box = lsst.geom.Box2D(ccd.getBBox())
+                psf_area = get_psf_area_center(ccd_box, ccd.getPsf())
 
             if has_metadata_quantity:
                 if ('B%04dSLV' % (bit)) in metadata:
@@ -279,6 +286,11 @@ class PatchMapper(object):
             for i, map_type in enumerate(self.config.map_types.keys()):
                 if map_run is not None and not np.any(map_run[map_type]):
                     values = 0
+                elif map_type == 'maglim_aper':
+                    # We compute this below from the weights
+                    values = 0.0
+                elif map_type == 'maglim_psf' or map_type == 'psf_area':
+                    values = np.zeros(u.size) + psf_area
                 elif map_type == 'psf_size':
                     values = psf_size
                 elif map_type == 'psf_e1':
@@ -351,7 +363,17 @@ class PatchMapper(object):
                     if op == OP_MEAN:
                         map_values_list[i][:, j] /= nexp
                     elif op == OP_WMEAN:
-                        map_values_list[i][:, j] /= weights
+                        if map_type == 'maglim_aper':
+                            maglims = self._compute_maglimits(coadd_zp, weights)
+                            map_values_list[i][:, j] = maglims
+                        elif map_type == 'maglim_psf':
+                            # The weighted psf area is stored in the map temporarily
+                            psf_areas = map_values_list[i][:, j]/weights
+                            maglims = self._compute_maglimits(coadd_zp, weights,
+                                                              psf_areas=psf_areas)
+                            map_values_list[i][:, j] = maglims
+                        else:
+                            map_values_list[i][:, j] /= weights
 
                 if not tract_mode:
                     # Here we want to save the patch map
@@ -629,6 +651,36 @@ class PatchMapper(object):
                    0.002875*(secz - 1.0)**2.0 -
                    0.0008083*(secz - 1.0)**3.0)
         return airmass
+
+    def _compute_maglimits(self, zp, weights, psf_areas=None):
+        """
+        Compute the maglimit from summed weights.
+
+        Parameters
+        ----------
+        zp : `float`
+           Zeropoint to compute magnitude limits
+        weights : `np.ndarray`
+           Array of summed weights
+        psf_areas : `np.ndarray`, optional
+           The array of effective psf areas.
+
+        Returns
+        -------
+        maglims : `np.ndarray`
+           Array of mag limits
+        """
+        maglims = zp - 2.5*np.log10(1./np.sqrt(weights))
+
+        if psf_areas is not None:
+            area = psf_areas
+        else:
+            area = np.pi*self.config.maglim_aperture**2.
+
+        maglims = (zp - 2.5*np.log10(1./np.sqrt(weights)) -
+                   2.5*np.log10(self.config.maglim_nsig*np.sqrt(area)))
+
+        return maglims
 
     def _update_coadd_map_values(self, exposure, patch_info, valid_pixels, map_values_list):
         """

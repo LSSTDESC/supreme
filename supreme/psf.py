@@ -44,3 +44,8 @@ def get_approx_psf_size_and_shape(bbox, psf, wcs, ra, dec, nx=20, ny=20, orderx=
     psf_e2_pts = cheb_e2.evaluate(pixel_x, pixel_y)
 
     return psf_size_pts, psf_e1_pts, psf_e2_pts
+
+
+def get_psf_area_center(bbox, psf):
+    im = psf.computeKernelImage(bbox.getCenter())
+    return np.sum(im.array)/np.sum(im.array**2.)
