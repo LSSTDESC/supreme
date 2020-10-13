@@ -28,6 +28,8 @@ class Configuration(object):
     bad_mask_planes: List[str] = field(default_factory=_default_bad_mask_planes)
     detector_id_name: str = 'detector'
     visit_id_name: str = 'visit'
+    maglim_aperture: float = 12.0  # pixels
+    maglim_nsig: float = 10.0
 
     def __post_init__(self):
         self._validate()
