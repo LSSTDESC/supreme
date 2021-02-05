@@ -2,7 +2,11 @@ import numpy as np
 import lsst.sphgeom
 import lsst.geom
 import lsst.afw.detection as afwDetection
-import lsst.meas.algorithms as measAlg
+
+try:
+    from lsst.ip.isr import Defects
+except ImportError:
+    from lsst.meas.algorithms import Defects
 
 
 OP_NONE = 0
@@ -261,5 +265,5 @@ def convert_mask_to_bbox_list(mask, plane_name):
     thresh = afwDetection.Threshold(mask.getPlaneBitMask(plane_name),
                                     afwDetection.Threshold.BITMASK)
     fp_list = afwDetection.FootprintSet(mask, thresh).getFootprints()
-    defects = measAlg.Defects.fromFootprintList(fp_list)
+    defects = Defects.fromFootprintList(fp_list)
     return [d.getBBox() for d in defects]

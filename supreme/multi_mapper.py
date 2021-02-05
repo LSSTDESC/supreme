@@ -2,7 +2,7 @@ import os
 import numpy as np
 import healpy as hp
 import healsparse
-from multiprocessing import Pool
+import multiprocessing
 
 import lsst.log
 
@@ -148,9 +148,10 @@ class MultiMapper(object):
                              [map_run]*len(multi_dict[tract][f]),
                              [clobber]*len(multi_dict[tract][f]))
 
-                pool = Pool(processes=self.ncores,
-                            initializer=pool_initializer,
-                            initargs=(self.butler, self.ncores == 1))
+                mp_ctx = multiprocessing.get_context("fork")
+                pool = mp_ctx.Pool(processes=self.ncores,
+                                   initializer=pool_initializer,
+                                   initargs=(self.butler, self.ncores == 1))
                 results = pool.starmap(patch_mapper, values, chunksize=1)
                 pool.close()
                 pool.join()
