@@ -14,7 +14,7 @@ class MultiMapper(object):
     """
     Map a combination of tracts/filters/patches.
     """
-    def __init__(self, butler, config, outputpath, ncores=1):
+    def __init__(self, butler, config, outputpath, ncores=1, debug=False):
         """
         Instantiate a MultiMapper
 
@@ -33,6 +33,7 @@ class MultiMapper(object):
         self.config = config
         self.outputpath = outputpath
         self.ncores = ncores
+        self.debug = debug
 
         lsst.log.setLevel("", lsst.log.ERROR)
 
@@ -148,13 +149,19 @@ class MultiMapper(object):
                              [map_run]*len(multi_dict[tract][f]),
                              [clobber]*len(multi_dict[tract][f]))
 
-                mp_ctx = multiprocessing.get_context("fork")
-                pool = mp_ctx.Pool(processes=self.ncores,
-                                   initializer=pool_initializer,
-                                   initargs=(self.butler, self.ncores == 1))
-                results = pool.starmap(patch_mapper, values, chunksize=1)
-                pool.close()
-                pool.join()
+                if self.debug:
+                    from .patch_mapper import debug_initializer
+                    debug_initializer(self.butler)
+
+                    results = [patch_mapper(*v) for v in values]
+                else:
+                    mp_ctx = multiprocessing.get_context("fork")
+                    pool = mp_ctx.Pool(processes=self.ncores,
+                                       initializer=pool_initializer,
+                                       initargs=(self.butler, self.ncores == 1))
+                    results = pool.starmap(patch_mapper, values, chunksize=1)
+                    pool.close()
+                    pool.join()
 
                 if not consolidate:
                     continue
