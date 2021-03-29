@@ -26,6 +26,7 @@ class Configuration(object):
     nside: int = 32768
     use_calexp_mask: bool = False
     bad_mask_planes: List[str] = field(default_factory=_default_bad_mask_planes)
+    bad_mask_coverage: float = 0.5  # fraction of area
     detector_id_name: str = 'detector'
     visit_id_name: str = 'visit'
     maglim_aperture: float = 12.0  # pixels

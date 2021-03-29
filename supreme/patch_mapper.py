@@ -9,6 +9,7 @@ import warnings
 import lsst.geom
 import lsst.afw.geom as afwGeom
 import lsst.afw.math as afwMath
+import lsst.afw.image as afwImage
 import lsst.daf.persistence as dafPersist
 
 import astropy.units as units
@@ -16,10 +17,10 @@ from astropy.time import Time
 import coord
 from astropy.coordinates import EarthLocation
 
-from .utils import vertices_to_radec, pixels_to_radec, radec_to_xy
+from .utils import vertices_to_radec, pixels_to_radec, radec_to_xy, xy_to_radec
 from .utils import OP_NONE, OP_SUM, OP_MEAN, OP_WMEAN, OP_MIN, OP_MAX, OP_OR
 from .utils import approx_patch_polygon_area, op_str_to_code
-from .utils import convert_mask_to_bbox_list, bbox_to_radec_grid
+from .utils import bbox_to_radec_grid
 from .psf import get_approx_psf_size_and_shape, get_psf_area_center
 
 global _butler_dict
@@ -39,11 +40,15 @@ def pool_initializer(butler, is_single):
         _butler_dict[this_core] = dafPersist.Butler(repo)
 
 
+def debug_initializer(butler):
+    _butler_dict[0] = butler
+
+
 class PatchMapper(object):
     """
     Map a single patch.  Should usually be invoked via MultiMapper.
     """
-    def __init__(self, outputpath, config):
+    def __init__(self, outputpath, config, debug=False):
         """
         Instantiate a PatchMapper
 
@@ -96,7 +101,12 @@ class PatchMapper(object):
            Returned if return_values_list is True.
         """
         # Copy in global butler for multiprocessing
-        this_core = multiprocessing.current_process()._identity[0]
+        try:
+            this_core = multiprocessing.current_process()._identity[0]
+        except IndexError:
+            # debug mode
+            this_core = 0
+
         butler = _butler_dict[this_core]
 
         if not butler.datasetExists('deepCoadd',
@@ -423,6 +433,13 @@ class PatchMapper(object):
                                                               nside_sparse=self.config.nside,
                                                               dtype=healsparse.WIDE_MASK,
                                                               wide_mask_maxbits=len(ccds))
+
+        if self.config.use_calexp_mask:
+            # pixel_scale = tract_wcs.getPixelScale().asArcseconds()
+            hpix_area_arcsec2 = hp.nside2pixarea(patch_input_map.nside_sparse,
+                                                 degrees=True)*(3600.**2.)
+            bad_mask = afwImage.Mask.getPlaneBitMask(self.config.bad_mask_planes)
+
         metadata = {}
         for bit, ccd in enumerate(ccds):
             metadata['B%04dCCD' % (bit)] = ccd['ccd']
@@ -450,20 +467,26 @@ class PatchMapper(object):
 
                 mask = calexp.getMask()
 
-                mask_poly_list = []
-                for plane in self.config.bad_mask_planes:
-                    bboxes = convert_mask_to_bbox_list(mask, plane)
-                    for bbox in bboxes:
-                        b_radec = pixels_to_radec(wcs, lsst.geom.Box2D(bbox).getCorners())
-                        mask_poly = healsparse.Polygon(ra=b_radec[:, 0],
-                                                       dec=b_radec[:, 1],
-                                                       value=1)
-                        mask_poly_list.append(mask_poly)
-                    mask_map = healsparse.HealSparseMap.make_empty(nside_coverage=nside_coverage_patch,
-                                                                   nside_sparse=self.config.nside,
-                                                                   dtype=np.uint8)
-                    healsparse.realize_geom(mask_poly_list, mask_map)
-                    poly_map.apply_mask(mask_map)
+                pixel_scale = tract_wcs.getPixelScale().asArcseconds()
+                min_bad = self.config.bad_mask_coverage*hpix_area_arcsec2/(pixel_scale**2.)
+                bad_pixels = np.where(mask.getArray() & bad_mask)
+
+                # Convert bad pixels to position
+                bad_radec = xy_to_radec(wcs,
+                                        bad_pixels[1].astype(np.float64),
+                                        bad_pixels[0].astype(np.float64))
+
+                # Convert position to healpixel
+                bad_hpix = hp.ang2pix(patch_input_map.nside_sparse,
+                                      bad_radec[:, 0], bad_radec[:, 1],
+                                      lonlat=True, nest=True)
+
+                min_bad_hpix = bad_hpix.min()
+                bad_hpix_count = np.zeros(bad_hpix.max() - min_bad_hpix + 1, dtype=np.int32)
+                np.add.at(bad_hpix_count, bad_hpix - min_bad_hpix, 1)
+                hpix_to_mask = min_bad_hpix + np.where(bad_hpix_count > min_bad)[0]
+
+                poly_map.clear_bits_pix(hpix_to_mask, [bit])
 
                 if 'SKYLEVEL' not in calexp_metadata:
                     # We must recompute skylevel, skysigma

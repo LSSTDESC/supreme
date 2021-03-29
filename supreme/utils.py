@@ -3,11 +3,6 @@ import lsst.sphgeom
 import lsst.geom
 import lsst.afw.detection as afwDetection
 
-try:
-    from lsst.ip.isr import Defects
-except ImportError:
-    from lsst.meas.algorithms import Defects
-
 
 OP_NONE = 0
 OP_SUM = 1
@@ -244,26 +239,3 @@ def bbox_to_radec_grid(wcs, bbox, tol=1e-7):
                          bbox.getDimensions().getX()) + bbox.getBeginY()
 
     return xy, radec
-
-
-def convert_mask_to_bbox_list(mask, plane_name):
-    """
-    Convert a mask plane to a list of bounding boxes.
-
-    Parameters
-    ----------
-    mask : `lsst.afw.image.MaskX`
-       Mask plane image
-    plane_name : `str`
-       Name of mask plane to create bounding boxes
-
-    Returns
-    -------
-    bboxes : `list` of `lsst.geom.Box2I`
-       List of bounding boxes describing the mask plane.
-    """
-    thresh = afwDetection.Threshold(mask.getPlaneBitMask(plane_name),
-                                    afwDetection.Threshold.BITMASK)
-    fp_list = afwDetection.FootprintSet(mask, thresh).getFootprints()
-    defects = Defects.fromFootprintList(fp_list)
-    return [d.getBBox() for d in defects]
