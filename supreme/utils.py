@@ -1,7 +1,6 @@
 import numpy as np
 import lsst.sphgeom
 import lsst.geom
-import lsst.afw.detection as afwDetection
 
 
 OP_NONE = 0
